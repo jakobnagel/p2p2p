@@ -1,5 +1,54 @@
+syntax = "proto3";
 
-message rsa_public_key {
-  int32 n = 1
-  int32 e = 2
+package p2p2p;
+
+message message_wrapper {
+    uint32 id = 1; 
+    bytes[] = 2;
+}
+
+
+// Protocol messages
+message file_download_request {
+    FileMetadata FileMetadata = 1;
+}
+
+message file_download_approval {
+    FileMetadata FileMetadata = 1;
+}
+
+message file_upload_request {
+    FileMetadata FileMetadata = 1;
+}
+
+message file_upload_approval {
+    FileMetadata FileMetadata = 1;
+}
+
+message RSAUpdateKey {
+    RsaPublicKey RsaPublicKey = 1;
+}
+
+// Base types
+message RsaPublicKey {
+    uint32 n = 1;
+    uint32 e = 2;
+}
+
+message DiffeHellman {
+    uint32 p = 1;
+    uint32 a = 2;
+}
+
+message FileList {
+    repeated FileMetadata = 1;
+}
+
+message FileMetadata {
+    string hash = 1;
+    string name = 2;
+}
+
+message FileContents {
+    bytes[] = 1;
 }
