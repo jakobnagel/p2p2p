@@ -1,0 +1,5 @@
+
+message rsa_public_key {
+  int32 n = 1
+  int32 e = 2
+}
