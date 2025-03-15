@@ -4,7 +4,8 @@ package p2p2p;
 
 message message_wrapper {
     uint32 id = 1; 
-    bytes[] = 2;
+    bytes message = 2;
+    bytes signature = 3;
 }
 
 
@@ -41,7 +42,7 @@ message DiffeHellman {
 }
 
 message FileList {
-    repeated FileMetadata = 1;
+    repeated FileMetadata files = 1;
 }
 
 message FileMetadata {
@@ -50,5 +51,5 @@ message FileMetadata {
 }
 
 message FileContents {
-    bytes[] = 1;
+    bytes data = 1;
 }
