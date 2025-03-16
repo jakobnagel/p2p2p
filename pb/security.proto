@@ -6,7 +6,7 @@ option go_package = "go/types/security;security";
 
 // security
 message RSAUpdateKey {
-  RsaPublicKey RsaPublicKey = 1;
+  RsaPublicKey rsa_public_key = 1;
 }
 
 // Base types
@@ -16,5 +16,5 @@ message RsaPublicKey {
 }
 
 message DiffeHellman {
-  bytes DhPublicKey = 1;
+  bytes dh_public_key = 1;
 }
