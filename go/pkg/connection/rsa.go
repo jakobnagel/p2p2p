@@ -16,11 +16,12 @@ import (
 
 	"google.golang.org/protobuf/proto"
 	pb "nagelbros.com/p2p2p/pb/security"
+	"nagelbros.com/p2p2p/pkg/config"
 )
 
 func readOrGeneratePrivateRsaKey() (*rsa.PrivateKey, error) {
-	privateKeyData, err := os.ReadFile("private.pem")
-	if err != nil {
+	privateKeyData, err := os.ReadFile(config.Cfg.PrivateKeyFile)
+	if os.IsNotExist(err) {
 		fmt.Printf("Could not read private key: %s\n", err)
 		fmt.Printf("Generating new RSA key\n")
 
@@ -28,8 +29,8 @@ func readOrGeneratePrivateRsaKey() (*rsa.PrivateKey, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not generate RSA key: %s", err)
 		}
-
-		privateKeyFile, err := os.Create("private.pem")
+		fmt.Println("FILE: ", config.Cfg.PrivateKeyFile)
+		privateKeyFile, err := os.Create(config.Cfg.PrivateKeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("could not create private key file: %s", err)
 		}

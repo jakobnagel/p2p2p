@@ -8,7 +8,10 @@ import (
 
 var Cfg *Config
 
-type Config struct{ KnownServicesFile string }
+type Config struct {
+	KnownServicesFile string
+	PrivateKeyFile    string
+}
 
 func Init(envPath string) {
 	if envPath != "" {
@@ -18,5 +21,14 @@ func Init(envPath string) {
 		}
 	}
 
-	Cfg = &Config{KnownServicesFile: os.Getenv("KNOWN_SERVICES_FILE")}
+	Cfg = &Config{
+		KnownServicesFile: getEnv("KNOWN_SERVICES_FILE", "known_services.txt"),
+		PrivateKeyFile:    getEnv("PRIVATE_KEY_FILE", "private_key.pem")}
+}
+
+func getEnv(key, fallback string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return fallback
 }
