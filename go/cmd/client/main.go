@@ -12,11 +12,13 @@ import (
 func main() {
 	flag.Parse()
 
-	if flag.Arg(0) == "list-services" {
+	command := flag.Arg(0)
+
+	if command == "list-services" {
 		listServices()
 	}
 
-	if flag.Arg(0) == "list" {
+	if command == "list" {
 		addr := flag.Arg(1)
 		if addr == "" {
 			fmt.Printf("Usage: list <address>\n")
@@ -25,13 +27,6 @@ func main() {
 
 		list(addr)
 	}
-	// port := os.Getenv("PORT")
-	// if port == "" {
-	// 	port = "8080"
-	// }
-
-	// fmt.Printf("Message sent: %d\n", []byte("Poop"))
-	// secConn.Send([]byte("Poop"))
 }
 
 func listServices() {
@@ -46,7 +41,7 @@ func listServices() {
 		return
 	}
 	for i, service := range discovered {
-		fmt.Printf("%d. ip: %s port: %d\n", i, service.AddrIPv4[0], service.Port)
+		fmt.Printf("%d. %s:%d\n", i, service.AddrV4, service.Port)
 	}
 }
 
