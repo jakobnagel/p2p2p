@@ -9,13 +9,15 @@ import time
 
 from zeroconf import ServiceInfo, Zeroconf, __version__
 
+
 def main():
     r = Zeroconf()
+    TYPE="_ppp._tcp.local."
 
     # create and bind socket
     s = socket.socket()
     host = socket.gethostname()
-    ip = socket.gethostbyname(socket.gethostname())
+    ip = socket.gethostbyname(host)
     print(ip)
     port = 12345
     s.bind((host, port))
@@ -26,16 +28,17 @@ def main():
         addresses.append(socket.inet_pton(socket.AF_INET6, "::1"))
         expected.add("::1")
 
-    desc = {"version": "0.10", "a": "test value", "b": "another value"}
+    # desc = {"version": "0.10", "a": "test value", "b": "another value"}
     info = ServiceInfo(
-        "_http._tcp.local.",
-        "FileSharing._http._tcp.local.",
+        f"{TYPE}",
+        f"{host}.{TYPE}",
         addresses=addresses,
-        port=12345,
-        properties=desc,
+        port=port,
+        # properties=desc,
     )
 
     r.register_service(info)
+    print(info)
 
     s.listen(5)
     while True:
@@ -51,6 +54,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
 
