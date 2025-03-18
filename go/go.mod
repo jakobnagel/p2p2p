@@ -4,6 +4,7 @@ go 1.22.5
 
 require (
 	github.com/hashicorp/mdns v1.0.6
+	github.com/joho/godotenv v1.5.1
 	google.golang.org/protobuf v1.36.5
 )
 

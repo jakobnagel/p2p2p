@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 	pb "nagelbros.com/p2p2p/pb/message"
+	"nagelbros.com/p2p2p/pkg/config"
 )
 
 type SecureConnection struct {
@@ -24,7 +25,6 @@ type SecureConnection struct {
 const Hash = crypto.SHA256
 
 func EstablishSecureConnection(conn net.Conn, initiator bool) (*SecureConnection, error) {
-
 	// RSA key exchange
 	localRsaKey, err := readOrGeneratePrivateRsaKey()
 	if err != nil {
@@ -35,6 +35,11 @@ func EstablishSecureConnection(conn net.Conn, initiator bool) (*SecureConnection
 	remoteRsaKey, err := acceptRsa(conn)
 	if err != nil {
 		return nil, fmt.Errorf("could not accept RSA key: %s", err)
+	}
+
+	valid := verifyRsaKey(config.Cfg.KnownServicesFile, conn.RemoteAddr(), remoteRsaKey)
+	if valid != nil {
+		return nil, fmt.Errorf("could not verify RSA key: %s", valid)
 	}
 
 	// diffie-hellman key exchange

@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"net"
 
+	"nagelbros.com/p2p2p/pkg/config"
 	"nagelbros.com/p2p2p/pkg/connection"
 	"nagelbros.com/p2p2p/pkg/mdns"
 )
 
 func main() {
 	flag.Parse()
+	config.Init("client.env")
 
 	command := flag.Arg(0)
 
@@ -30,7 +32,6 @@ func main() {
 }
 
 func listServices() {
-	fmt.Printf("Discovering services...\n")
 	discovered, err := mdns.Discover()
 	if err != nil {
 		fmt.Printf("Could not discover services: %s", err)

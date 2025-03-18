@@ -8,12 +8,15 @@ import (
 	// "time"
 	"os"
 
+	"nagelbros.com/p2p2p/pkg/config"
 	"nagelbros.com/p2p2p/pkg/connection"
 	"nagelbros.com/p2p2p/pkg/mdns"
 	// "strings"
 )
 
 func main() {
+	config.Init("server.env")
+
 	hostname, err := os.Hostname()
 	if err != nil {
 		fmt.Println("Error getting hostname: ", err)

@@ -1,2 +1,4 @@
 bin
 *.pem
+client_known_services.txt
+server_known_services.txt

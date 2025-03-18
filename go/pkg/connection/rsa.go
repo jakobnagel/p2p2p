@@ -1,14 +1,18 @@
 package connection
 
 import (
+	"bufio"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/binary"
 	"encoding/pem"
 	"fmt"
 	"math/big"
 	"net"
 	"os"
+	"strings"
 
 	"google.golang.org/protobuf/proto"
 	pb "nagelbros.com/p2p2p/pb/security"
@@ -93,4 +97,66 @@ func sendRsa(conn net.Conn, key *rsa.PublicKey) error {
 
 	_, err = conn.Write(publicKeyMsgBytes)
 	return err
+}
+
+func verifyRsaKey(fname string, addr net.Addr, key *rsa.PublicKey) error {
+	f, err := os.Open(fname)
+	if err != nil {
+		if os.IsNotExist(err) {
+			f, err = os.Create(fname)
+			if err != nil {
+				return fmt.Errorf("could not create known services file: %s", err)
+			}
+		} else {
+			return fmt.Errorf("could not open known services file: %s", err)
+		}
+	}
+
+	r := bufio.NewReader(f)
+
+	for {
+		line, err := r.ReadString('\n')
+		line = strings.TrimSpace(line)
+		if err != nil { // EOF
+			f.Close()
+			break
+		}
+
+		addr2, hash, found := strings.Cut(line, " ")
+		if !found {
+			return fmt.Errorf("could not parse known services file")
+		}
+
+		if addr2 == addr.String() {
+			if fmt.Sprintf("%x", hashRsaKey(key)) == hash {
+				return nil
+			} else {
+				return fmt.Errorf("RSA key does not match address: %s", addr2)
+			}
+		}
+	}
+
+	// add key to file
+	f, err = os.OpenFile(fname, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("could not open known services file: %s", err)
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(fmt.Sprintf("%s %x\n", addr.String(), hashRsaKey(key)))
+	if err != nil {
+		return fmt.Errorf("could not write to known services file: %s", err)
+	}
+
+	return nil
+}
+
+func hashRsaKey(key *rsa.PublicKey) []byte {
+	hash := crypto.SHA224.New()
+
+	e := make([]byte, 8)
+	binary.BigEndian.PutUint64(e, uint64(key.E))
+
+	hash.Write(append(key.N.Bytes(), e...))
+	return hash.Sum(nil)
 }
