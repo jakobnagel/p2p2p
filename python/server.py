@@ -23,18 +23,11 @@ def main():
     s.bind((host, port))
 
     addresses = [socket.inet_aton(ip)]
-    expected = {ip}
-    if socket.has_ipv6:
-        addresses.append(socket.inet_pton(socket.AF_INET6, "::1"))
-        expected.add("::1")
-
-    # desc = {"version": "0.10", "a": "test value", "b": "another value"}
     info = ServiceInfo(
         f"{TYPE}",
         f"{host}.{TYPE}",
         addresses=addresses,
         port=port,
-        # properties=desc,
     )
 
     r.register_service(info)
