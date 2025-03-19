@@ -8,8 +8,10 @@ import (
 	"github.com/hashicorp/mdns"
 )
 
+const serviceName = "_ppp._tcp.local."
+
 func Publish(hostname string, port int, info string) (*mdns.Server, error) {
-	service, err := mdns.NewMDNSService(hostname, "_ppp._tcp", "", hostname+".", port, nil, nil)
+	service, err := mdns.NewMDNSService(hostname, serviceName, "", hostname+".", port, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("could not create mDNS service: %s", err)
 	}
@@ -33,7 +35,7 @@ func Discover() ([]*mdns.ServiceEntry, error) {
 	}()
 
 	err := mdns.Query(&mdns.QueryParam{
-		Service:     "_ppp._tcp",
+		Service:     serviceName,
 		Timeout:     1 * time.Second,
 		Entries:     entriesCh,
 		DisableIPv6: true,

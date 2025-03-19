@@ -42,7 +42,7 @@ func listServices() {
 		return
 	}
 	for i, service := range discovered {
-		fmt.Printf("%d. %s:%d\n", i, service.AddrV4, service.Port)
+		fmt.Printf("%d. %s:%d\n", i + 1, service.AddrV4, service.Port)
 	}
 }
 
