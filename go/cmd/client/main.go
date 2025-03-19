@@ -6,8 +6,8 @@ import (
 	"net"
 
 	"nagelbros.com/p2p2p/pkg/config"
-	"nagelbros.com/p2p2p/pkg/connection"
 	"nagelbros.com/p2p2p/pkg/mdns"
+	"nagelbros.com/p2p2p/pkg/security"
 )
 
 func main() {
@@ -42,7 +42,7 @@ func listServices() {
 		return
 	}
 	for i, service := range discovered {
-		fmt.Printf("%d. %s:%d\n", i + 1, service.AddrV4, service.Port)
+		fmt.Printf("%d. %s:%d\n", i+1, service.AddrV4, service.Port)
 	}
 }
 
@@ -55,7 +55,7 @@ func list(addr string) {
 	}
 	defer conn.Close()
 
-	secConn, err := connection.EstablishSecureConnection(conn, true)
+	secConn, err := security.EstablishSecureConnection(conn, true)
 	if err != nil {
 		fmt.Printf("Could not establish secure connection: %s", err)
 		return

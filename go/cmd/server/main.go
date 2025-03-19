@@ -9,8 +9,8 @@ import (
 	"os"
 
 	"nagelbros.com/p2p2p/pkg/config"
-	"nagelbros.com/p2p2p/pkg/connection"
 	"nagelbros.com/p2p2p/pkg/mdns"
+	"nagelbros.com/p2p2p/pkg/security"
 	// "strings"
 )
 
@@ -61,7 +61,7 @@ func main() {
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	secureConn, err := connection.EstablishSecureConnection(conn, false)
+	secureConn, err := security.EstablishSecureConnection(conn, false)
 	if err != nil {
 		fmt.Println("Error: ", err)
 		return

@@ -39,6 +39,7 @@ func Discover() ([]*mdns.ServiceEntry, error) {
 		Timeout:     1 * time.Second,
 		Entries:     entriesCh,
 		DisableIPv6: true,
+		Logger:      nil,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not query for mDNS services: %s", err)
