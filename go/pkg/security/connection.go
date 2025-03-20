@@ -2,8 +2,6 @@ package security
 
 import (
 	"crypto"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/ecdh"
 	"crypto/rand"
 	"crypto/rsa"
@@ -72,22 +70,15 @@ func EstablishSecureConnection(conn net.Conn, initiator bool) (*SecureConnection
 }
 
 func (sc *SecureConnection) Send(data []byte) error {
-	// encrypt
-	block, err := aes.NewCipher(sc.sharedSecret)
-	if err != nil {
-		return fmt.Errorf("could not create AES cipher: %s", err)
-	}
 	nonce := make([]byte, 12)
 	if _, err := rand.Read(nonce); err != nil {
 		return fmt.Errorf("could not generate nonce: %s", err)
 	}
 
-	aesgcm, err := cipher.NewGCM(block)
+	ciphertext, err := encrypt(data, sc.sharedSecret, nonce)
 	if err != nil {
-		return fmt.Errorf("could not create GCM: %s", err)
+		return fmt.Errorf("could not encrypt message: %s", err)
 	}
-
-	ciphertext := aesgcm.Seal(nil, nonce, data, nil)
 
 	// sign
 	hash := Hash.New()
@@ -141,20 +132,10 @@ func (sc *SecureConnection) Receive() ([]byte, error) {
 	}
 
 	// decrypt
-	block, err := aes.NewCipher(sc.sharedSecret)
-	if err != nil {
-		return nil, fmt.Errorf("could not create AES cipher: %s", err)
-	}
-
-	aesgcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, fmt.Errorf("could not create GCM: %s", err)
-	}
-
-	data, err := aesgcm.Open(nil, nonce, ciphertext, nil)
+	plaintext, err := decrypt(ciphertext, sc.sharedSecret, nonce)
 	if err != nil {
 		return nil, fmt.Errorf("could not decrypt message: %s", err)
 	}
 
-	return data, nil
+	return plaintext, nil
 }

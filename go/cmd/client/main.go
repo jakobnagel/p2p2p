@@ -4,16 +4,17 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"path"
 
 	"nagelbros.com/p2p2p/pkg/config"
+	"nagelbros.com/p2p2p/pkg/io"
 	"nagelbros.com/p2p2p/pkg/mdns"
 	"nagelbros.com/p2p2p/pkg/security"
 )
 
-func main() {
-	flag.Parse()
-	config.Init("client.env")
+var password string
 
+func main() {
 	command := flag.Arg(0)
 
 	if command == "list-services" {
@@ -29,6 +30,22 @@ func main() {
 
 		list(addr)
 	}
+
+	if command == "encrypt" {
+		inFile := flag.Arg(1)
+		if inFile == "" {
+			fmt.Printf("Usage: encrypt <input file> --password <password>\n")
+			return
+		}
+
+		encrypt(inFile, password)
+	}
+}
+
+func init() {
+	config.Init("client.env")
+	flag.StringVar(&password, "password", io.UndefinedPassword, "password to use for encryption")
+	flag.Parse()
 }
 
 func listServices() {
@@ -63,4 +80,19 @@ func list(addr string) {
 
 	secConn.Send([]byte("GIVE ME YOUR FILES"))
 	secConn.Receive()
+}
+
+func encrypt(inFile, password string) {
+	if password == io.UndefinedPassword {
+		password = io.GetUserPassword()
+	}
+	outFile := path.Join(config.Cfg.FileDir, inFile+".enc")
+
+	err := security.EncryptFile(inFile, outFile, password)
+	if err != nil {
+		fmt.Printf("Could not encrypt file: %s", err)
+		return
+	}
+
+	fmt.Printf("File encrypted successfully\n")
 }

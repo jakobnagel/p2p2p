@@ -4,20 +4,37 @@ package p2p2p;
 
 option go_package = "go/types/message;message";
 
+// used to wrap encrypted messages
 message MessageWrapper {
-    uint32 id = 1; 
-    bytes message = 2;
-    bytes signature = 3;
-    bytes nonce = 4;
+  bytes message = 1;// encrypted
+  bytes signature = 2;
+  bytes nonce = 3;
+}
+
+message Message {
+  string id = 1; // unique id for the message
+  MessageType type = 2;
+  oneof payload {
+    FileDownloadRequeset file_download_request = 3;
+    FileUploadRequest file_upload_request = 4;
+    FileList file_list = 5;
+    FileContents file_contents = 6;
+    Decline decline = 7;
+    Confirmation confirmation = 8;
+  }
 }
 
 // first thing sent by the client after secure connection is established
-enum Action {
+enum MessageType {
     LIST_FILES = 0;
 }
 
-message ActionResponse {
-  bool accepted = 1;
+message Decline { // used to decline a request to perform an action
+  string reason = 1;
+}
+
+message Confirmation { // used to confirm action was successful
+  string message = 1;
 }
 
 // Protocol messages

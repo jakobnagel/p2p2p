@@ -2,6 +2,8 @@ package mdns
 
 import (
 	"fmt"
+	"nagelbros.com/p2p2p/pkg/logging"
+
 	// "sync"
 	"time"
 
@@ -39,7 +41,7 @@ func Discover() ([]*mdns.ServiceEntry, error) {
 		Timeout:     1 * time.Second,
 		Entries:     entriesCh,
 		DisableIPv6: true,
-		Logger:      nil,
+		Logger:      logging.NullLogger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not query for mDNS services: %s", err)
