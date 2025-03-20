@@ -4,12 +4,6 @@ package p2p2p;
 
 option go_package = "go/types/security;security";
 
-// security
-message RSAUpdateKey {
-  RsaPublicKey rsa_public_key = 1;
-}
-
-// Base types
 message RsaPublicKey {
   bytes n = 1;
   uint32 e = 2;
