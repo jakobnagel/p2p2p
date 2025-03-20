@@ -12,21 +12,23 @@ message MessageWrapper {
 }
 
 message Message {
-  MessageType type = 2;
+  MessageType type = 1;
   oneof payload {
-    FileDownloadRequeset file_download_request = 3;
-    FileList file_list = 4;
-    File file = 5;
+    FileDownloadRequeset file_download_request = 2;
+    FileList file_list = 3;
+    File file = 4;
   }
 }
 
 // first thing sent by the client after secure connection is established
 enum MessageType {
   FILE_DOWNLOAD_REQUEST = 0;
-  LIST_FILES = 1;
-  FILE_CONTENTS = 2;
-  DECLINE = 3;
-  CONFIRMATION = 4;
+  FILE_UPLOAD_REQUEST = 1;
+  FILE_LIST_REQUEST = 2;
+  FILE = 3;
+  FILE_LIST = 4;
+  DECLINE = 5;
+  CONFIRMATION = 6;
 }
 
 message Decline { // used to decline a request to perform an action

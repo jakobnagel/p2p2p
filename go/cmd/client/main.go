@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 
-	"google.golang.org/protobuf/proto"
 	"nagelbros.com/p2p2p/pkg/config"
 	"nagelbros.com/p2p2p/pkg/io"
 	"nagelbros.com/p2p2p/pkg/mdns"
@@ -83,33 +82,24 @@ func list(addr string) {
 	}
 
 	// send request
-	msg := &message.Message{Type: message.MessageType_LIST_FILES}
-	msgEncoded, err := proto.Marshal(msg)
-	if err != nil {
-		fmt.Printf("Could not marshal message: %s", err)
-		return
-	}
+	msg := &message.Message{Type: message.MessageType_FILE_LIST_REQUEST}
 
-	err = secConn.Send(msgEncoded)
+	err = secConn.Send(msg)
 	if err != nil {
 		fmt.Printf("Could not send message: %s", err)
 		return
 	}
 
-	respEncoded, err := secConn.Receive()
+	resp, err := secConn.Receive()
 	if err != nil {
 		fmt.Printf("Could not receive message: %s", err)
 		return
 	}
 
-	// process response
-	resp := &message.FileList{}
-	proto.Unmarshal(respEncoded, resp)
-
-	if len(resp.Files) == 0 {
+	if len(resp.GetFileList().Files) == 0 {
 		fmt.Printf("No files found\n")
 	} else {
-		for i, file := range resp.Files {
+		for i, file := range resp.GetFileList().Files {
 			fmt.Printf("%d. %s\n", i+1, file.Name)
 		}
 	}

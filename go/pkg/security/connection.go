@@ -9,8 +9,8 @@ import (
 	"net"
 
 	"google.golang.org/protobuf/proto"
-	pb "nagelbros.com/p2p2p/types/message"
 	"nagelbros.com/p2p2p/pkg/config"
+	pb "nagelbros.com/p2p2p/types/message"
 )
 
 type SecureConnection struct {
@@ -69,7 +69,12 @@ func EstablishSecureConnection(conn net.Conn, initiator bool) (*SecureConnection
 	}, nil
 }
 
-func (sc *SecureConnection) Send(data []byte) error {
+func (sc *SecureConnection) Send(message *pb.Message) error {
+	data, err := proto.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("could not marshal message: %s", err)
+	}
+
 	nonce := make([]byte, 12)
 	if _, err := rand.Read(nonce); err != nil {
 		return fmt.Errorf("could not generate nonce: %s", err)
@@ -104,7 +109,7 @@ func (sc *SecureConnection) Send(data []byte) error {
 	return nil
 }
 
-func (sc *SecureConnection) Receive() ([]byte, error) {
+func (sc *SecureConnection) Receive() (*pb.Message, error) {
 	buf := make([]byte, 1024)
 	n, err := sc.conn.Read(buf)
 	if err != nil {
@@ -128,10 +133,17 @@ func (sc *SecureConnection) Receive() ([]byte, error) {
 	}
 
 	// decrypt
-	plaintext, err := decrypt(ciphertext, sc.sharedSecret, nonce)
+	data, err := decrypt(ciphertext, sc.sharedSecret, nonce)
 	if err != nil {
 		return nil, fmt.Errorf("could not decrypt message: %s", err)
 	}
 
-	return plaintext, nil
+	// unmarshal
+	message := &pb.Message{}
+	err = proto.Unmarshal(data, message)
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshal message: %s", err)
+	}
+
+	return message, nil
 }

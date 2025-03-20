@@ -8,7 +8,6 @@ import (
 	// "time"
 	"os"
 
-	"google.golang.org/protobuf/proto"
 	"nagelbros.com/p2p2p/pkg/config"
 	"nagelbros.com/p2p2p/pkg/io"
 	"nagelbros.com/p2p2p/pkg/mdns"
@@ -73,21 +72,14 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
-	msgEncoded, err := secureConn.Receive()
-	if err != nil {
-		fmt.Println("Error: ", err)
-		return
-	}
-
-	msg := &message.Message{}
-	err = proto.Unmarshal(msgEncoded, msg)
+	msg, err := secureConn.Receive()
 	if err != nil {
 		fmt.Println("Error: ", err)
 		return
 	}
 
 	switch msg.Type {
-	case message.MessageType_LIST_FILES:
+	case message.MessageType_FILE_LIST_REQUEST:
 		listFiles(secureConn)
 	}
 }
@@ -103,13 +95,8 @@ func listFiles(conn *security.SecureConnection) {
 	for i, file := range files {
 		fileMetadatas[i] = &message.FileMetadata{Name: file}
 	}
-	msg := &message.FileList{Files: fileMetadatas}
+	fileList := &message.FileList{Files: fileMetadatas}
+	msg := &message.Message{Type: message.MessageType_FILE_LIST, Payload: &message.Message_FileList{FileList: fileList}}
 
-	msgEncoded, err := proto.Marshal(msg)
-	if err != nil {
-		fmt.Println("Error: ", err)
-		return
-	}
-
-	conn.Send(msgEncoded)
+	conn.Send(msg)
 }
