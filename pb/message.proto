@@ -17,10 +17,12 @@ message Message {
   oneof payload {
     FileDownloadRequeset file_download_request = 3;
     FileUploadRequest file_upload_request = 4;
-    FileList file_list = 5;
-    FileContents file_contents = 6;
-    Decline decline = 7;
-    Confirmation confirmation = 8;
+    FileListRequest file_list_request = 5;
+    KeyMigrationRequest key_migration_request = 6;
+    FileList file_list = 7;
+    FileContents file_contents = 8;
+    Decline decline = 9;
+    Confirmation confirmation = 10;
   }
 }
 
@@ -44,6 +46,13 @@ message FileDownloadRequeset {
 
 message FileUploadRequest {
     string file_name = 1;
+}
+
+message FileListRequest {
+
+}
+
+message KeyMigrationRequest {
 }
 
 message FileList {
