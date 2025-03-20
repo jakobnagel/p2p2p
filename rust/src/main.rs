@@ -1,12 +1,29 @@
 mod mdns;
+mod tcp;
 
-use mdns::init_mdns;
-use std::{io, sync::mpsc};
+use mdns::Mdns;
+use std::collections::HashMap;
+use std::io;
+use std::net::{IpAddr, SocketAddr};
+use std::sync::{mpsc, Arc, Mutex, RwLock};
+use std::thread;
+use tcp::Tcp;
 
 fn main() {
+    // mDNS
     let (ip_sender, ip_receiver) = mpsc::channel();
+    let mdns = Mdns::new(ip_sender).unwrap();
+    let mdns_handle = thread::spawn(move || {
+        mdns.run();
+    });
 
-    let mdns: mdns_sd::ServiceDaemon = init_mdns(ip_sender).unwrap();
+    // TCP
+    let tcp = Tcp::new().unwrap();
+    let server_state = tcp.get_state();
+    let tcp_handle = thread::spawn(move || {
+        tcp.run();
+    });
+
     // TODO: Initialize File Receiving thread
     // TODO: Initialize RSA keys and file directory
 
@@ -33,5 +50,4 @@ fn main() {
             }
         }
     }
-    mdns.shutdown().unwrap();
 }
