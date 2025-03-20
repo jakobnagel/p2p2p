@@ -15,8 +15,8 @@ import (
 	"strings"
 
 	"google.golang.org/protobuf/proto"
-	pb "nagelbros.com/p2p2p/pb/security"
 	"nagelbros.com/p2p2p/pkg/config"
+	pb "nagelbros.com/p2p2p/types/security"
 )
 
 func readOrGeneratePrivateRsaKey() (*rsa.PrivateKey, error) {

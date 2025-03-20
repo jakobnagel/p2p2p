@@ -8,8 +8,8 @@ import (
 	"net"
 
 	"google.golang.org/protobuf/proto"
-	mesPb "nagelbros.com/p2p2p/pb/message"
-	secPb "nagelbros.com/p2p2p/pb/security"
+	mesPb "nagelbros.com/p2p2p/types/message"
+	secPb "nagelbros.com/p2p2p/types/security"
 )
 
 func sendDh(conn net.Conn, dhKey *ecdh.PrivateKey, rsaKey *rsa.PrivateKey) error {

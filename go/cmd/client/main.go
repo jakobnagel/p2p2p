@@ -4,12 +4,15 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"os"
 	"path"
 
+	"google.golang.org/protobuf/proto"
 	"nagelbros.com/p2p2p/pkg/config"
 	"nagelbros.com/p2p2p/pkg/io"
 	"nagelbros.com/p2p2p/pkg/mdns"
 	"nagelbros.com/p2p2p/pkg/security"
+	"nagelbros.com/p2p2p/types/message"
 )
 
 var password string
@@ -46,6 +49,7 @@ func init() {
 	config.Init("client.env")
 	flag.StringVar(&password, "password", io.UndefinedPassword, "password to use for encryption")
 	flag.Parse()
+	os.MkdirAll(config.Cfg.FileDir, 0755)
 }
 
 func listServices() {
@@ -78,8 +82,37 @@ func list(addr string) {
 		return
 	}
 
-	secConn.Send([]byte("GIVE ME YOUR FILES"))
-	secConn.Receive()
+	// send request
+	msg := &message.Message{Type: message.MessageType_LIST_FILES}
+	msgEncoded, err := proto.Marshal(msg)
+	if err != nil {
+		fmt.Printf("Could not marshal message: %s", err)
+		return
+	}
+
+	err = secConn.Send(msgEncoded)
+	if err != nil {
+		fmt.Printf("Could not send message: %s", err)
+		return
+	}
+
+	respEncoded, err := secConn.Receive()
+	if err != nil {
+		fmt.Printf("Could not receive message: %s", err)
+		return
+	}
+
+	// process response
+	resp := &message.FileList{}
+	proto.Unmarshal(respEncoded, resp)
+
+	if len(resp.Files) == 0 {
+		fmt.Printf("No files found\n")
+	} else {
+		for i, file := range resp.Files {
+			fmt.Printf("%d. %s\n", i+1, file.Name)
+		}
+	}
 }
 
 func encrypt(inFile, password string) {

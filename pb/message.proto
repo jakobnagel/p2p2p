@@ -12,23 +12,21 @@ message MessageWrapper {
 }
 
 message Message {
-  string id = 1; // unique id for the message
   MessageType type = 2;
   oneof payload {
     FileDownloadRequeset file_download_request = 3;
-    FileUploadRequest file_upload_request = 4;
-    FileListRequest file_list_request = 5;
-    KeyMigrationRequest key_migration_request = 6;
-    FileList file_list = 7;
-    FileContents file_contents = 8;
-    Decline decline = 9;
-    Confirmation confirmation = 10;
+    FileList file_list = 4;
+    File file = 5;
   }
 }
 
 // first thing sent by the client after secure connection is established
 enum MessageType {
-    LIST_FILES = 0;
+  FILE_DOWNLOAD_REQUEST = 0;
+  LIST_FILES = 1;
+  FILE_CONTENTS = 2;
+  DECLINE = 3;
+  CONFIRMATION = 4;
 }
 
 message Decline { // used to decline a request to perform an action
@@ -60,10 +58,10 @@ message FileList {
 }
 
 message FileMetadata {
-    string hash = 1;
     string name = 2;
 }
 
-message FileContents {
-    bytes data = 1;
+message File {
+  string name = 1;
+  bytes data = 2;
 }

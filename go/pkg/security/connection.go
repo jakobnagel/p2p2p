@@ -9,7 +9,7 @@ import (
 	"net"
 
 	"google.golang.org/protobuf/proto"
-	pb "nagelbros.com/p2p2p/pb/message"
+	pb "nagelbros.com/p2p2p/types/message"
 	"nagelbros.com/p2p2p/pkg/config"
 )
 
@@ -81,9 +81,7 @@ func (sc *SecureConnection) Send(data []byte) error {
 	}
 
 	// sign
-	hash := Hash.New()
-	hash.Write(ciphertext)
-	signature, err := rsa.SignPKCS1v15(rand.Reader, sc.localRsaKey, Hash, hash.Sum(nil))
+	signature, err := sign(ciphertext, sc.localRsaKey)
 	if err != nil {
 		return fmt.Errorf("could not sign message: %s", err)
 	}
@@ -124,9 +122,7 @@ func (sc *SecureConnection) Receive() ([]byte, error) {
 	nonce := msg.Nonce
 
 	// verify
-	hash := Hash.New()
-	hash.Write(ciphertext)
-	err = rsa.VerifyPKCS1v15(sc.remoteRsaKey, Hash, hash.Sum(nil), signature)
+	err = verify(ciphertext, signature, sc.remoteRsaKey)
 	if err != nil {
 		return nil, fmt.Errorf("could not verify message: %s", err)
 	}

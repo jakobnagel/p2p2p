@@ -8,15 +8,21 @@ import (
 	// "time"
 	"os"
 
+	"google.golang.org/protobuf/proto"
 	"nagelbros.com/p2p2p/pkg/config"
+	"nagelbros.com/p2p2p/pkg/io"
 	"nagelbros.com/p2p2p/pkg/mdns"
 	"nagelbros.com/p2p2p/pkg/security"
+	"nagelbros.com/p2p2p/types/message"
 	// "strings"
 )
 
-func main() {
+func init() {
 	config.Init("server.env")
+	os.MkdirAll(config.Cfg.FileDir, 0755)
+}
 
+func main() {
 	hostname, err := os.Hostname()
 	if err != nil {
 		fmt.Println("Error getting hostname: ", err)
@@ -67,10 +73,43 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
-	buff, err := secureConn.Receive()
+	msgEncoded, err := secureConn.Receive()
 	if err != nil {
 		fmt.Println("Error: ", err)
 		return
 	}
-	fmt.Printf("Received from client: %d\n", buff)
+
+	msg := &message.Message{}
+	err = proto.Unmarshal(msgEncoded, msg)
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return
+	}
+
+	switch msg.Type {
+	case message.MessageType_LIST_FILES:
+		listFiles(secureConn)
+	}
+}
+
+func listFiles(conn *security.SecureConnection) {
+	files, err := io.GetFiles(config.Cfg.FileDir)
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return
+	}
+
+	fileMetadatas := make([]*message.FileMetadata, len(files))
+	for i, file := range files {
+		fileMetadatas[i] = &message.FileMetadata{Name: file}
+	}
+	msg := &message.FileList{Files: fileMetadatas}
+
+	msgEncoded, err := proto.Marshal(msg)
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return
+	}
+
+	conn.Send(msgEncoded)
 }
