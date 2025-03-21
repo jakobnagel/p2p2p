@@ -13,7 +13,7 @@ import (
 	pb "nagelbros.com/p2p2p/types/message"
 )
 
-type SecureConnection struct {
+type SecConn struct {
 	conn         net.Conn
 	remoteRsaKey *rsa.PublicKey
 	localRsaKey  *rsa.PrivateKey
@@ -22,7 +22,7 @@ type SecureConnection struct {
 
 const Hash = crypto.SHA256
 
-func EstablishSecureConnection(conn net.Conn, initiator bool) (*SecureConnection, error) {
+func EstablishSecureConnection(conn net.Conn) (*SecConn, error) {
 	// RSA key exchange
 	localRsaKey, err := readOrGeneratePrivateRsaKey()
 	if err != nil {
@@ -35,7 +35,7 @@ func EstablishSecureConnection(conn net.Conn, initiator bool) (*SecureConnection
 		return nil, fmt.Errorf("could not accept RSA key: %s", err)
 	}
 
-	valid := verifyRsaKey(config.Cfg.KnownServicesFile, conn.RemoteAddr(), remoteRsaKey)
+	valid := verifyRsaKey(config.Cfg.KnownKeysFile, conn.RemoteAddr(), remoteRsaKey)
 	if valid != nil {
 		return nil, fmt.Errorf("could not verify RSA key: %s", valid)
 	}
@@ -61,7 +61,7 @@ func EstablishSecureConnection(conn net.Conn, initiator bool) (*SecureConnection
 		return nil, fmt.Errorf("could not compute shared secret: %s", err)
 	}
 
-	return &SecureConnection{
+	return &SecConn{
 		conn:         conn,
 		remoteRsaKey: remoteRsaKey,
 		localRsaKey:  localRsaKey,
@@ -69,7 +69,7 @@ func EstablishSecureConnection(conn net.Conn, initiator bool) (*SecureConnection
 	}, nil
 }
 
-func (sc *SecureConnection) Send(message *pb.Message) error {
+func (sc *SecConn) Send(message *pb.Message) error {
 	data, err := proto.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("could not marshal message: %s", err)
@@ -80,7 +80,7 @@ func (sc *SecureConnection) Send(message *pb.Message) error {
 		return fmt.Errorf("could not generate nonce: %s", err)
 	}
 
-	ciphertext, err := encrypt(data, sc.sharedSecret, nonce)
+	ciphertext, err := Encrypt(data, sc.sharedSecret, nonce)
 	if err != nil {
 		return fmt.Errorf("could not encrypt message: %s", err)
 	}
@@ -109,7 +109,7 @@ func (sc *SecureConnection) Send(message *pb.Message) error {
 	return nil
 }
 
-func (sc *SecureConnection) Receive() (*pb.Message, error) {
+func (sc *SecConn) Receive() (*pb.Message, error) {
 	buf := make([]byte, 1024)
 	n, err := sc.conn.Read(buf)
 	if err != nil {
@@ -133,7 +133,7 @@ func (sc *SecureConnection) Receive() (*pb.Message, error) {
 	}
 
 	// decrypt
-	data, err := decrypt(ciphertext, sc.sharedSecret, nonce)
+	data, err := Decrypt(ciphertext, sc.sharedSecret, nonce)
 	if err != nil {
 		return nil, fmt.Errorf("could not decrypt message: %s", err)
 	}
@@ -146,4 +146,8 @@ func (sc *SecureConnection) Receive() (*pb.Message, error) {
 	}
 
 	return message, nil
+}
+
+func (sc *SecConn) Addr() net.Addr {
+	return sc.conn.RemoteAddr()
 }

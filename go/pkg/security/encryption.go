@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-func encrypt(data []byte, key []byte, nonce []byte) ([]byte, error) {
+func Encrypt(data []byte, key []byte, nonce []byte) ([]byte, error) {
 	// encrypt
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -22,7 +22,7 @@ func encrypt(data []byte, key []byte, nonce []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
-func decrypt(ciphertext, key, nonce []byte) ([]byte, error) {
+func Decrypt(ciphertext, key, nonce []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("could not create AES cipher: %s", err)

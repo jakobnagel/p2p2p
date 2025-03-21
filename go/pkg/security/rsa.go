@@ -112,6 +112,7 @@ func verifyRsaKey(fname string, addr net.Addr, key *rsa.PublicKey) error {
 			return fmt.Errorf("could not open known services file: %s", err)
 		}
 	}
+	defer f.Close()
 
 	r := bufio.NewReader(f)
 

@@ -1,24 +1,34 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
+	"path"
 	"strconv"
 
 	// "time"
 	"os"
 
 	"nagelbros.com/p2p2p/pkg/config"
+	"nagelbros.com/p2p2p/pkg/files"
 	"nagelbros.com/p2p2p/pkg/io"
 	"nagelbros.com/p2p2p/pkg/mdns"
+	"nagelbros.com/p2p2p/pkg/message"
 	"nagelbros.com/p2p2p/pkg/security"
-	"nagelbros.com/p2p2p/types/message"
+	pb "nagelbros.com/p2p2p/types/message"
 	// "strings"
 )
 
+var password string
+
 func init() {
-	config.Init("server.env")
-	os.MkdirAll(config.Cfg.FileDir, 0755)
+	flag.StringVar(&password, "password", io.UndefinedPassword, "password for encryption")
+	flag.Parse()
+
+	if password == io.UndefinedPassword {
+		password = io.GetUserPassword()
+	}
 }
 
 func main() {
@@ -66,7 +76,7 @@ func main() {
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	secureConn, err := security.EstablishSecureConnection(conn, false)
+	secureConn, err := security.EstablishSecureConnection(conn)
 	if err != nil {
 		fmt.Println("Error: ", err)
 		return
@@ -78,25 +88,64 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
-	switch msg.Type {
-	case message.MessageType_FILE_LIST_REQUEST:
+	switch msg.GetType() {
+	case pb.MessageType_FILE_LIST_REQUEST:
 		listFiles(secureConn)
+	case pb.MessageType_FILE_DOWNLOAD_REQUEST:
+		sendFile(secureConn, msg.GetFileDownloadRequest().FileName)
+	case pb.MessageType_FILE_UPLOAD_REQUEST:
+		receiveFile(secureConn, msg.GetFileUploadRequest())
 	}
 }
 
-func listFiles(conn *security.SecureConnection) {
-	files, err := io.GetFiles(config.Cfg.FileDir)
+func listFiles(conn *security.SecConn) {
+	files, err := files.GetFiles(config.Cfg.FileDir, password)
 	if err != nil {
 		fmt.Println("Error: ", err)
 		return
 	}
 
-	fileMetadatas := make([]*message.FileMetadata, len(files))
-	for i, file := range files {
-		fileMetadatas[i] = &message.FileMetadata{Name: file}
-	}
-	fileList := &message.FileList{Files: fileMetadatas}
-	msg := &message.Message{Type: message.MessageType_FILE_LIST, Payload: &message.Message_FileList{FileList: fileList}}
+	conn.Send(message.FileList(files))
+}
 
-	conn.Send(msg)
+func sendFile(conn *security.SecConn, fileName string) {
+	consent := io.GetConsent(fmt.Sprintf("Do you want to send file %s to %s?", fileName, conn.Addr()))
+	if !consent {
+		errorMsg := message.ErrorMessage("User did not consent to send file")
+		conn.Send(errorMsg)
+		return
+	}
+
+	filePath := path.Join(config.Cfg.FileDir, fileName+".enc")
+
+	plaintext, err := files.DecryptFromFile(filePath, password)
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return
+	}
+
+	conn.Send(message.FileData(plaintext))
+}
+
+func receiveFile(conn *security.SecConn, uploadFileReq *pb.FileUploadRequest) {
+	fileName := uploadFileReq.FileName
+	fileData := uploadFileReq.FileData
+
+	if !files.VerifyFile(fileData, fileName) {
+		errMsg := message.ErrorMessage("File hash does not match known file")
+		conn.Send(errMsg)
+		return
+	}
+
+	if !io.GetConsent(fmt.Sprintf("Do you want to receive file %s from %s", fileName, conn.Addr())) {
+		errMsg := message.ErrorMessage("User did not consent to receive file")
+		conn.Send(errMsg)
+		return
+	}
+
+	err := files.EncryptToFile(fileData, path.Join(config.Cfg.FileDir, fileName+".enc"), password)
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return
+	}
 }

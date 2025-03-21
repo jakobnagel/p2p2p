@@ -2,6 +2,8 @@ package mdns
 
 import (
 	"fmt"
+	"net"
+
 	"nagelbros.com/p2p2p/pkg/logging"
 
 	// "sync"
@@ -45,6 +47,13 @@ func Discover() ([]*mdns.ServiceEntry, error) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not query for mDNS services: %s", err)
+	}
+
+	for _, result := range results {
+		if _, ok := knownHosts[result.Host]; !ok {
+			addr, _ := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", result.AddrV4, result.Port))
+			addHostToKnownHosts(result.Host, addr)
+		}
 	}
 
 	return results, nil

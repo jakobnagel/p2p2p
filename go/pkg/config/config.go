@@ -11,23 +11,27 @@ import (
 var Cfg *Config
 
 type Config struct {
-	KnownServicesFile string
+	KnownKeysFile     string
+	KnownHostsFile    string
+	KnownFilesFile    string
 	PrivateKeyFile    string
 	MinPasswordLength int
 	FileDir           string
 	WorkingDir        string
 }
 
-func Init(envPath string) {
-	if envPath != "" {
-		err := godotenv.Load(envPath)
+func init() {
+	if envMode, ok := os.LookupEnv("MODE"); ok {
+		err := godotenv.Load(envMode + ".env")
 		if err != nil {
 			fmt.Printf("Could not load .env file: %s\n", err)
 		}
 	}
 
 	Cfg = &Config{
-		KnownServicesFile: getEnv("KNOWN_SERVICES_FILE", "known_services.txt"),
+		KnownKeysFile:     getEnv("KNOWN_KEYS_FILE", "known_keys.txt"),
+		KnownHostsFile:    getEnv("KNOWN_HOSTS_FILE", "known_hosts.txt"),
+		KnownFilesFile:    getEnv("KNOWN_FILES_FILE", "known_files.txt"),
 		PrivateKeyFile:    getEnv("PRIVATE_KEY_FILE", "private_key.pem"),
 		MinPasswordLength: getEnvInt("MIN_PASSWORD_LENGTH", 12),
 		FileDir:           getEnv("FILE_DIR", "files"),
@@ -39,6 +43,8 @@ func Init(envPath string) {
 		dir, _ := os.Getwd()
 		Cfg.WorkingDir = dir
 	}
+
+	os.MkdirAll(Cfg.FileDir, 0755)
 }
 
 func getEnv(key, fallback string) string {

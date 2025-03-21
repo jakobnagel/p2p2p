@@ -15,8 +15,10 @@ message Message {
   MessageType type = 1;
   oneof payload {
     FileDownloadRequeset file_download_request = 2;
-    FileList file_list = 3;
-    File file = 4;
+    FileUploadRequest file_upload_request = 3;
+    FileList file_list = 4;
+    File file = 5;
+    Error error = 6;
   }
 }
 
@@ -27,8 +29,8 @@ enum MessageType {
   FILE_LIST_REQUEST = 2;
   FILE = 3;
   FILE_LIST = 4;
-  DECLINE = 5;
-  CONFIRMATION = 6;
+  CONFIRMATION = 5;
+  ERROR = 6;
 }
 
 message Decline { // used to decline a request to perform an action
@@ -46,6 +48,7 @@ message FileDownloadRequeset {
 
 message FileUploadRequest {
     string file_name = 1;
+    bytes file_data = 2;
 }
 
 message FileListRequest {
@@ -60,10 +63,15 @@ message FileList {
 }
 
 message FileMetadata {
-    string name = 2;
+    string name = 1;
+    bytes hash = 2;
 }
 
 message File {
   string name = 1;
   bytes data = 2;
+}
+
+message Error {
+  string message = 1;
 }

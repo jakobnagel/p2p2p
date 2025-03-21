@@ -32,3 +32,19 @@ func GetUserPassword() string {
 
 	return password
 }
+
+func GetConsent(prompt string) bool {
+	var consent string
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Printf("%s [y/n]: ", prompt)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	consent = strings.TrimSpace(line)
+	consent = strings.ToLower(consent)
+
+	return consent == "y"
+}
