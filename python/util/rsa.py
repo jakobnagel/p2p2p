@@ -1,7 +1,7 @@
-from cryptography.hazmat.primitives import serialization as crypto_serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization as crypto_serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import rsa, padding, utils
 from cryptography.hazmat.backends import default_backend as crypto_default_backend
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.hazmat.primitives.serialization import load_pem_private_key, load_pem_public_key
 import os.path
 
 private_path = "keys/rsaprivkey.pem"
@@ -21,8 +21,8 @@ def ensure_local_RSA_key():
                 crypto_serialization.NoEncryption()
         )
         public_key = key.public_key().public_bytes(
-                crypto_serialization.Encoding.OpenSSH,
-                crypto_serialization.PublicFormat.OpenSSH
+                crypto_serialization.Encoding.PEM,
+                crypto_serialization.PublicFormat.SubjectPublicKeyInfo
         )
         f = open(private_path, 'x')
         f.close()
@@ -42,4 +42,43 @@ def get_RSA_private_key():
         pemlines = pem_in.read()
     private_key = load_pem_private_key(pemlines, None, crypto_default_backend())
     return private_key
+
+def get_RSA_public_key():
+    ensure_local_RSA_key()
+
+    with open(public_path, 'rb') as pubkey:
+        pemlines = pubkey.read()
+    public_key = load_pem_public_key(pemlines)
+    return public_key
+
+def get_RSA_signature(key, msg):
+    chosen_hash = hashes.SHA256()
+    hasher = hashes.Hash(chosen_hash)
+    hasher.update(msg)
+    digest = hasher.finalize()
+    signature = key.sign(
+            digest,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+                ),
+            utils.Prehashed(chosen_hash)
+            )
+    return signature
+
+# Throws exception if invalid
+def verify_RSA_signature(pubkey, sig, msg):
+    chosen_hash = hashes.SHA256()
+    hasher = hashes.Hash(chosen_hash)
+    hasher.update(msg)
+    digest = hasher.finalize()
+    pubkey.verify(
+            sig,
+            digest,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+                ),
+            utils.Prehashed(chosen_hash)
+            )
 
