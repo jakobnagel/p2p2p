@@ -1,26 +1,24 @@
 #!/usr/bin/env python
 
-from __future__ import annotations
-
-import logging
-import sys
+from util.browser import browse
+from util.rsa import get_RSA_private_key
 import socket
 
-from zeroconf import Zeroconf
-
-TYPE = "_p2p._tcp.local."
+TYPE = "_ppp._tcp.local."
 NAME = socket.gethostname()
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    if len(sys.argv) > 1:
-        assert sys.argv[1:] == ["--debug"]
-        logging.getLogger("zeroconf").setLevel(logging.DEBUG)
+    pubkey = get_RSA_private_key()
+    print(pubkey)
 
-    zeroconf = Zeroconf()
+    peer = browse()
+    while peer:
+        addr, port = peer[1][0].split(":")
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((addr, int(port)))
+            s.sendall(b"Hello, world")
+            data = s.recv(1024)
 
-    try:
-        print(zeroconf.get_service_info(TYPE, NAME + "." + TYPE))
-        print(zeroconf.get_service_info(TYPE, NAME + "." + TYPE))
-    finally:
-        zeroconf.close()
+            print(f"Received {data!r}")
+        peer = None
+

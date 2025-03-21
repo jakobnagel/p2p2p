@@ -1,11 +1,8 @@
-#!/usr/bin/env python
+#/usr/bin/env python
 
 from __future__ import annotations
 
-import argparse
-import logging
-from time import sleep
-from typing import cast
+import socket
 
 from zeroconf import (
     ServiceBrowser,
@@ -25,11 +22,12 @@ def on_service_state_change(
 
         if info:
             addresses = [f"{addr}:{info.port}" for addr in info.parsed_scoped_addresses()]
+            # if socket.gethostname() not in info.server:
             servers.append((info.server, addresses))
         else:
             print("  No info")
 
-if __name__ == "__main__":
+def browse():
     zeroconf = Zeroconf()
     num_servers = 0
 
@@ -48,7 +46,7 @@ if __name__ == "__main__":
                     print(f"{i}: {p[0][:-1 * (len(TYPE) + 1)]}")
                 while choice not in range(len(servers)):
                     try:
-                        choice = int(input("Select a peer by entering the corresponding number:\n"))
+                        choice = int(input("Select a peer by entering the corresponding number. \n"))
                         if choice not in range(len(servers)):
                             print("Invalid number")
                     except:
@@ -56,10 +54,11 @@ if __name__ == "__main__":
 
                 peer = servers[choice]
                 break
-        print(f"connecting to {peer}")
+        print(f"connecting to {peer[0].split('.ppp')[0]}")
 
     except KeyboardInterrupt:
         pass
     finally:
         zeroconf.close()
+    return peer
 

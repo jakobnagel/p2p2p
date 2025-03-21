@@ -10,37 +10,49 @@ import time
 from zeroconf import ServiceInfo, Zeroconf, __version__
 
 
+TYPE="_ppp._tcp.local."
+NAME = socket.gethostname()
+
 def main():
     r = Zeroconf()
-    TYPE="_ppp._tcp.local."
 
     # create and bind socket
     s = socket.socket()
-    host = socket.gethostname()
-    ip = socket.gethostbyname(host)
-    print(ip)
+    ip = socket.gethostbyname(NAME)
     port = 12345
-    s.bind((host, port))
+    s.bind((NAME, port))
 
     addresses = [socket.inet_aton(ip)]
     info = ServiceInfo(
         f"{TYPE}",
-        f"{host}.{TYPE}",
+        f"{NAME}.{TYPE}",
         addresses=addresses,
         port=port,
     )
 
     r.register_service(info)
-    print(info)
+    print("Registered as peer.")
 
-    s.listen(5)
-    while True:
-        c, addr = s.accept()
-        print('Got connection from', addr)
-        c.send('Thank you for connecting'.encode())
-        time.sleep(5)
-        c.close()
-
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind((ip, port))
+    s.listen()
+    print("Listening for connections. Ctrl+c to quit.")
+    try:
+        while True:
+            conn, addr = s.accept()
+            with conn:
+                print(f"Connected by {addr}")
+                while True:
+                    data = conn.recv(1024)
+                    if not data:
+                        break
+                    print("got", data.decode())
+                    data = input("what to send back?").encode()
+                    conn.sendall(data)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        s.close()
         # unregister and close
         r.unregister_service(info)
         r.close()
