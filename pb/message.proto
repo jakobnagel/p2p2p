@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package p2p2p;
 
-import "pb/security.proto";
+import "security.proto";
 
 option go_package = "go/types/message;message";
 

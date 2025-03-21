@@ -1,4 +1,6 @@
+mod logic;
 mod mdns;
+mod state;
 mod tcp;
 
 use mdns::Mdns;
@@ -24,7 +26,6 @@ fn main() {
         tcp.run();
     });
 
-    // TODO: Initialize File Receiving thread
     // TODO: Initialize RSA keys and file directory
 
     loop {
