@@ -60,8 +60,20 @@ impl Tcp {
                 Ok(0) => break, // Connection closed
                 Ok(n) => {
                     println!("received from a client probably");
-                    if let Err(e) = handle_message(socket_addr, &buffer[..n]) {
-                        eprintln!("Error handling message: {}", e);
+
+                    match handle_message(socket_addr, &buffer[..n]) {
+                        Ok(Some(response_data)) => {
+                            if let Err(e) = stream.write_all(&response_data) {
+                                eprintln!("Failed to send response to client: {}", e);
+                                break;
+                            }
+                        }
+                        Ok(None) => {
+                            // No response to send, continue the loop
+                        }
+                        Err(e) => {
+                            eprintln!("Error handling message: {}", e);
+                        }
                     }
                 }
                 Err(e) => match e.kind() {

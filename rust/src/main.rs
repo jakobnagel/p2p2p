@@ -4,6 +4,7 @@ mod state;
 mod tcp;
 
 use mdns::Mdns;
+use state::init_app_data;
 use std::collections::HashMap;
 use std::io;
 use std::net::{IpAddr, SocketAddr};
@@ -12,6 +13,8 @@ use std::thread;
 use tcp::Tcp;
 
 fn main() {
+    init_app_data();
+
     // Mutex & State
     // Channel to send mDNS addresses to TCP
     let (ip_sender, ip_receiver) = mpsc::channel();
