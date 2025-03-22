@@ -1,6 +1,7 @@
 use crate::logic::handle_message;
 use crate::state::{ClientData, ServerState};
 use std::collections::HashMap;
+use std::io;
 use std::io::{Read, Write};
 use std::net::{IpAddr, SocketAddr, SocketAddrV4, TcpListener, TcpStream};
 use std::sync::{Arc, Mutex, RwLock};
@@ -81,6 +82,8 @@ impl Tcp {
 
         let mut buffer = [0; 1024];
         loop {
+            // TODO: Check for commands to send
+
             match stream.read(&mut buffer) {
                 Ok(0) => break, // Connection closed
                 Ok(n) => {
@@ -89,10 +92,22 @@ impl Tcp {
                         eprintln!("Error handling message: {}", e);
                     }
                 }
-                Err(e) => {
-                    // eprintln!("Error reading from stream: {}: {}", addr, e);
-                    break;
-                }
+                Err(e) => match e.kind() {
+                    io::ErrorKind::WouldBlock => {
+                        // No data available right now.
+                        println!("No data available (WouldBlock)");
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                    io::ErrorKind::Interrupted => {
+                        // Operation was interrupted.  Handle appropriately (maybe retry).
+                        println!("Read interrupted");
+                    }
+                    _ => {
+                        // Other errors (connection reset, etc.) - handle as fatal.
+                        eprintln!("Error reading from stream: {}", e);
+                        break;
+                    }
+                },
             }
         }
 
