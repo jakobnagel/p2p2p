@@ -7,6 +7,8 @@ import socket
 import sys
 import time
 
+from util.rsa import get_RSA_private_key, get_RSA_public_key, get_RSA_signature, verify_RSA_signature
+from util.intro import server_introduce
 from zeroconf import ServiceInfo, Zeroconf, __version__
 
 
@@ -15,6 +17,8 @@ NAME = socket.gethostname()
 
 def main():
     r = Zeroconf()
+    privkey = get_RSA_private_key()
+    pubkey = get_RSA_public_key()
 
     # create and bind socket
     s = socket.socket()
@@ -42,6 +46,7 @@ def main():
             conn, addr = s.accept()
             with conn:
                 print(f"Connected by {addr}")
+                server_introduce(conn, pubkey, privkey)
                 while True:
                     data = conn.recv(1024)
                     if not data:

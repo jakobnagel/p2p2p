@@ -1,0 +1,1 @@
+protoc --proto_path=/Users/alexandermuglia/assignments/crypto/p2p2p/pb/ --python_out=/Users/alexandermuglia/assignments/crypto/p2p2p/python/pb /Users/alexandermuglia/assignments/crypto/p2p2p/pb//security.proto
