@@ -4,20 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bytes = "1"
 prost = "0.13.5"
-rsa = "0.9"         # For RSA
-x25519-dalek = "2.0"  # For Diffie-Hellman (Curve25519)
-sha2 = "0.10"        # For SHA-256 hashing
-rand = "0.9"          # Random number generation
-rand_core = { version = "0.9.3", features = ["std"] }
-hkdf = "0.12"
-pbkdf2 = "0.12"
+rsa = { version = "0.9", features = ["sha2"] }
+x25519-dalek = "2.0"
 gethostname = "1"
 mdns-sd = "0.13.3"
 local-ip-address = "0.6.3"
-protobuf = "3.7.2"
-sha256 = "1.6.0"
+lazy_static = "1.5.0"
+hex = "0.4.3"
 
 [build-dependencies]
 prost-build = "0.13.5"

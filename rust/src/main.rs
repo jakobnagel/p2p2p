@@ -4,7 +4,6 @@ mod state;
 mod tcp;
 
 use mdns::Mdns;
-use state::FileSystem;
 use std::collections::HashMap;
 use std::io;
 use std::net::{IpAddr, SocketAddr};
@@ -16,8 +15,6 @@ fn main() {
     // Mutex & State
     // Channel to send mDNS addresses to TCP
     let (ip_sender, ip_receiver) = mpsc::channel();
-    // TODO: Move server_state here
-    let file_system = Arc::new(Mutex::new(FileSystem::new()));
     // TODO: Setup communication between CLI and each client_thread
 
     // mDNS
@@ -28,7 +25,6 @@ fn main() {
 
     // TCP
     let tcp = Tcp::new().unwrap();
-    let server_state = tcp.get_state();
     let tcp_handle = thread::spawn(move || {
         tcp.run();
     });

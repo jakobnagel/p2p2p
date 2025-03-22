@@ -1,37 +1,34 @@
-use crate::state::{ClientData, ServerState};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
-use std::thread;
+use std::net::SocketAddr;
 
-use p2p2p::wrapped_message::Payload;
-use prost::bytes::Bytes;
+use crate::state::{self, set_client_rsa_key};
 use prost::Message;
+use rsa::pkcs1v15::Signature;
 use rsa::pkcs1v15::{SigningKey, VerifyingKey};
+use rsa::sha2::Sha256;
 use rsa::signature::{Keypair, RandomizedSigner, SignatureEncoding, Verifier};
-use rsa::RsaPrivateKey;
-use sha2::{Digest, Sha256};
-
-// use crate::message::*;
+use rsa::{BigUint, RsaPrivateKey, RsaPublicKey};
 
 pub mod p2p2p {
     include!(concat!(env!("OUT_DIR"), "/p2p2p.rs"));
 }
 
-use p2p2p::{
-    signed_message, wrapped_message, EncryptedMessage, Introduction, SignedMessage, WrappedMessage,
-};
+use p2p2p::{signed_message, wrapped_message, EncryptedMessage, SignedMessage, WrappedMessage};
 
 pub fn handle_message(
+    socket_addr: SocketAddr,
     data: &[u8],
-    client_data: &Arc<Mutex<ClientData>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Decode messages
     let signed_message: SignedMessage = SignedMessage::decode(data)?;
 
-    let mut client_data_lock = client_data.lock().unwrap();
-    if client_data_lock.rsa_public.is_some() {
-        todo!();
-        // Verify the public key signing
+    // Verify signature if one exists
+    let verifying_key: Option<VerifyingKey<Sha256>> = state::get_client_rsa_key(socket_addr);
+    if verifying_key.is_some() {
+        let msg = &signed_message.signed_payload;
+        let signature: Signature = Signature::try_from(signed_message.rsa_signature.as_slice())?;
+        verifying_key
+            .unwrap()
+            .verify(msg, &signature)
+            .expect("Failed signature check");
     }
 
     match signed_message.encrypted_message() {
@@ -45,7 +42,12 @@ pub fn handle_message(
             let wrapped_message = WrappedMessage::decode(signed_message.signed_payload.as_slice())?;
             match wrapped_message.payload {
                 Some(wrapped_message::Payload::Introduction(introduction)) => {
-                    todo!();
+                    let rsa_public_key = introduction.rsa_public_key.unwrap();
+                    let e = BigUint::from(rsa_public_key.e);
+                    let n = BigUint::from_bytes_be(rsa_public_key.n.as_slice());
+                    let public_key = RsaPublicKey::new(n, e)?;
+                    let verifying_key = rsa::pkcs1v15::VerifyingKey::<Sha256>::new(public_key);
+                    set_client_rsa_key(socket_addr, verifying_key);
                 }
                 Some(wrapped_message::Payload::FileListRequest(_)) => {
                     todo!();
