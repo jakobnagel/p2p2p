@@ -32,10 +32,11 @@ struct FileSystem {
     pub files: HashMap<String, File>,
 }
 
+#[derive(Clone)]
 pub struct File {
     pub file_name: String,
     pub file_hash: String,
-    pub file_data: Vec<u8>,
+    pub file_data: Option<Vec<u8>>,
 }
 
 pub struct EncryptionModes {
@@ -49,6 +50,12 @@ pub struct ClientData {
     rsa_public: Option<VerifyingKey<Sha256>>,
     aes_ephemeral: Option<EphemeralSecret>,
     aes_shared: Option<SharedSecret>,
+    file_map: Option<HashMap<String, File>>,
+}
+
+pub struct aes_encrypted {
+    pub ciphertext: Vec<u8>,
+    pub nonce: Vec<u8>,
 }
 
 pub fn init_app_data() {
@@ -74,23 +81,26 @@ pub fn get_rsa_key() -> RsaPublicKey {
     app_data.private_key.as_ref().unwrap().to_public_key()
 }
 
+pub fn hash_file(file_data: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(&file_data);
+    hex::encode(hasher.finalize())
+}
+
 pub fn import_file(path: &Path) -> io::Result<String> {
     let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
     let file_data = fs::read(path)?;
-    // let file_hash = sha256::digest(&file_data);
 
-    let mut hasher = Sha256::new();
-    hasher.update(&file_data);
-    let file_hash = hex::encode(hasher.finalize());
+    let file_hash = hash_file(&file_data);
 
     {
         let mut file_system = FILE_SYSTEM.write().unwrap();
         file_system.files.insert(
             file_hash.clone(),
             File {
-                file_name,
+                file_name: file_name,
                 file_hash: file_hash.clone(),
-                file_data,
+                file_data: Some(file_data),
             },
         );
     }
@@ -102,13 +112,52 @@ pub fn export_file(file_hash: &str, path: &Path) -> io::Result<String> {
     {
         let file_system = FILE_SYSTEM.read().unwrap();
         let file = file_system.files.get(file_hash).unwrap();
-        fs::write(path, &file.file_data)?;
+        fs::write(path, file.file_data.as_ref().unwrap())?;
     }
     {
         let mut file_system = FILE_SYSTEM.write().unwrap();
         file_system.files.remove(file_hash).unwrap();
     }
     Ok(path.to_str().unwrap().to_string())
+}
+
+pub fn get_file_list() -> Vec<File> {
+    let file_system = FILE_SYSTEM.read().unwrap();
+    file_system.files.values().cloned().collect()
+}
+
+pub fn get_file_by_hash(file_hash: &str) -> File {
+    let file_system = FILE_SYSTEM.read().unwrap();
+    file_system.files.get(file_hash).unwrap().clone()
+}
+
+pub fn get_file_by_name(file_name: &str) -> File {
+    let file_system = FILE_SYSTEM.read().unwrap();
+    for file in file_system.files.values() {
+        if file.file_name == file_name {
+            return file.clone();
+        }
+    }
+    panic!("File not found")
+}
+
+pub fn set_file(file: File) {
+    let mut file_system = FILE_SYSTEM.write().unwrap();
+    file_system.files.insert(file.file_hash.clone(), file);
+}
+
+pub fn set_client_file_list(socket_addr: SocketAddr, file_map: HashMap<String, File>) {
+    let client_data_map = CLIENT_DATA.read().unwrap();
+    let mut client_data = client_data_map.get(&socket_addr).unwrap().write().unwrap();
+
+    client_data.file_map = Some(file_map);
+}
+
+pub fn get_client_file_list(socket_addr: SocketAddr) -> Option<HashMap<String, File>> {
+    let client_data_map = CLIENT_DATA.read().unwrap();
+    let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
+
+    client_data.file_map.clone()
 }
 
 pub fn init_client_data(socket_addr: SocketAddr) {
@@ -118,6 +167,7 @@ pub fn init_client_data(socket_addr: SocketAddr) {
         rsa_public: None,
         aes_ephemeral: Some(EphemeralSecret::random_from_rng(OsRng)),
         aes_shared: None,
+        file_map: None,
     };
     {
         let mut client_data_map = CLIENT_DATA.write().unwrap();
@@ -193,7 +243,7 @@ pub fn set_client_dh_shared(socket_addr: SocketAddr, bob_public: PublicKey) {
     }
 }
 
-pub fn encrypt_aes_message(socket_addr: SocketAddr, plaintext: &[u8]) -> Vec<u8> {
+pub fn encrypt_aes_message(socket_addr: SocketAddr, plaintext: &[u8]) -> aes_encrypted {
     let client_data_map = CLIENT_DATA.read().unwrap();
     let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
 
@@ -203,8 +253,11 @@ pub fn encrypt_aes_message(socket_addr: SocketAddr, plaintext: &[u8]) -> Vec<u8>
     let cipher = aes_gcm::Aes256Gcm::new(&key);
 
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
-    let encrypted_bytes = cipher.encrypt(&nonce, plaintext.as_ref()).unwrap();
-    encrypted_bytes
+    let ciphertext = cipher.encrypt(&nonce, plaintext.as_ref()).unwrap();
+    aes_encrypted {
+        ciphertext,
+        nonce: nonce.to_vec(),
+    }
 }
 
 pub fn decrypt_aes_message(socket_addr: SocketAddr, nonce: &[u8], ciphertext: &[u8]) -> Vec<u8> {
