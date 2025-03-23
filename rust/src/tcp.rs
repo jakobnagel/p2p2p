@@ -53,6 +53,9 @@ pub fn connect(socket_addr: SocketAddr) {
 
 fn handle_client(mut stream: TcpStream) {
     let socket_addr = stream.peer_addr().expect("Failed to get client address");
+    state::init_client_data(socket_addr);
+    state::increment_client_connections(socket_addr);
+
     let mut buffer = [0; 1024];
 
     loop {
@@ -61,7 +64,7 @@ fn handle_client(mut stream: TcpStream) {
             match stream.read(&mut buffer) {
                 Ok(0) => break, // Connection closed
                 Ok(n) => {
-                    println!("received message from a client {:?}", buffer);
+                    println!("received message from a client {:?}", (&buffer[..n]));
 
                     let signed_message =
                         pb::SignedMessage::decode(&buffer[..n]).expect("NOT A PROTOBUF MESSAGE");
@@ -97,5 +100,6 @@ fn handle_client(mut stream: TcpStream) {
     }
 
     // state::remove_client_data(socket_addr);
+    state::decrement_client_connections(socket_addr);
     println!("Client disconnected: {}", socket_addr);
 }

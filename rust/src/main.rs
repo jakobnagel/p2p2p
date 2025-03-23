@@ -18,98 +18,74 @@ pub mod pb {
     include!(concat!(env!("OUT_DIR"), "/p2p2p.rs"));
 }
 
-fn main() {
-    state::init_app_data();
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Starting...");
+    thread::spawn(move || {
+        // RSA key generation is super slow
+        // Will replace once keys are
+        state::init_app_data();
+    });
+
+    // TODO Import data on 2nd startup
 
     // mDNS
-    let mdns = Mdns::new().unwrap();
     let _mdns_handle = thread::spawn(move || {
+        let mdns = Mdns::new().unwrap();
         mdns.run();
     });
 
     // TCP
-    let tcp = TcpServer::new().unwrap();
     let _tcp_handle = thread::spawn(move || {
+        let tcp = TcpServer::new().unwrap();
         tcp.run();
     });
 
-    // TODO: Initialize RSA keys and file directory
-
     // Rustyline setup
-    // Use DefaultHistory for the History type
     let mut rl: Editor<(), DefaultHistory> =
         Editor::new().expect("Unable to create rustyline editor");
-    if rl.load_history("history.txt").is_err() {
-        println!("No previous history.");
-    }
 
     loop {
-        let readline = rl.readline(">> ");
-        match readline {
-            Ok(line) => {
-                rl.add_history_entry(line.as_str());
-                let input_string = line.trim().to_ascii_lowercase();
+        let readline = rl.readline(">> ")?;
+        rl.add_history_entry(readline.as_str())?;
 
-                match input_string.as_str() {
-                    "help" => {
-                        println!("Available commands:");
-                        println!("  help - Show this help message");
-                        println!("  send <address> - Attempt to connect to the given address");
-                        println!("  contacts - List known clients");
-                        println!("  exit - Exit the application");
-                    }
-                    "send" => {
-                        // get input inside the send block
-                        println!("Enter address: ");
-                        let addr_line = rl.readline("send>> ");
-                        match addr_line {
-                            Ok(addr_str) => {
-                                let socket_addr = match SocketAddr::from_str(addr_str.trim()) {
-                                    Ok(addr) => addr,
-                                    Err(e) => {
-                                        eprintln!("Invalid address: {}: {}", addr_str.trim(), e);
-                                        continue;
-                                    }
-                                };
-                                state::init_client_data(socket_addr);
-                                tcp::connect(socket_addr);
-                            }
-                            Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
-                                break;
-                            }
-                            Err(err) => {
-                                eprintln!("Error reading address: {:?}", err);
-                                continue;
-                            }
+        let parts: Vec<&str> = readline.split_whitespace().collect();
+
+        match parts.get(0).map(|s| s.to_lowercase()).as_deref() {
+            Some("help") => {
+                println!("Available commands:");
+                println!("  help - Show this help message");
+            }
+            Some("connect") => {
+                if parts.len() >= 2 {
+                    let socket_addr: Result<SocketAddr, _> = parts[1].parse();
+                    match socket_addr {
+                        Ok(addr) => {
+                            state::init_client_data(addr);
+                            tcp::connect(addr);
+                        }
+                        Err(e) => {
+                            eprintln!("Invalid address: {:?}: {}", parts, e);
+                            continue;
                         }
                     }
-                    "receive" => {
-                        println!("Not yet implemented");
-                    }
-                    "contacts" => {
-                        println!("{}", state::list_clients());
-                    }
-                    "exit" => {
-                        break;
-                    }
-                    _ => {
-                        println!("Unknown command. Type 'help' for a list of commands.");
-                    }
+                } else {
+                    println!("Usage: connect 127.0.0.1:8080");
                 }
             }
-            Err(ReadlineError::Interrupted) => {
-                println!("CTRL-C");
+            Some("contacts") => {
+                println!("{}", state::list_clients());
+            }
+            Some("exit") => {
                 break;
             }
-            Err(ReadlineError::Eof) => {
-                println!("CTRL-D");
-                break;
-            }
-            Err(err) => {
-                println!("Error: {:?}", err);
-                break;
+            None => {} // Empty line, do nothing.
+            _ => {
+                println!("Unknown command. Type 'help' for a list of commands.");
             }
         }
     }
+
+    // TODO: Save App Data on shutdown
     rl.save_history("history.txt").unwrap();
+    Ok(())
 }

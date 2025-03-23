@@ -177,6 +177,22 @@ pub fn set_file(file: File) {
     file_system.files.insert(file.file_hash.clone(), file);
 }
 
+pub fn increment_client_connections(socket_addr: SocketAddr) -> u16 {
+    let client_data_map = CLIENT_DATA.read().unwrap();
+    let mut client_data = client_data_map.get(&socket_addr).unwrap().write().unwrap();
+
+    client_data.connections += 1;
+    client_data.connections
+}
+
+pub fn decrement_client_connections(socket_addr: SocketAddr) -> u16 {
+    let client_data_map = CLIENT_DATA.read().unwrap();
+    let mut client_data = client_data_map.get(&socket_addr).unwrap().write().unwrap();
+
+    client_data.connections -= 1;
+    client_data.connections
+}
+
 pub fn set_client_file_list(socket_addr: SocketAddr, file_map: HashMap<String, File>) {
     let client_data_map = CLIENT_DATA.read().unwrap();
     let mut client_data = client_data_map.get(&socket_addr).unwrap().write().unwrap();
@@ -192,6 +208,13 @@ pub fn get_client_file_list(socket_addr: SocketAddr) -> Option<HashMap<String, F
 }
 
 pub fn init_client_data(socket_addr: SocketAddr) {
+    {
+        let client_data_map = CLIENT_DATA.read().unwrap();
+        if client_data_map.contains_key(&socket_addr) {
+            return;
+        }
+    }
+
     let client_data = ClientData {
         connections: 0,
         rsa_public: None,
@@ -226,7 +249,12 @@ pub fn list_clients() -> String {
     client_list
 }
 
-pub fn get_client_data(socket_addr: SocketAddr) -> String {
+pub fn get_client_list() -> Vec<SocketAddr> {
+    let client_data_map = CLIENT_DATA.read().unwrap();
+    client_data_map.keys().cloned().collect()
+}
+
+pub fn get_client_data_string(socket_addr: SocketAddr) -> String {
     let client_data_map = CLIENT_DATA.read().unwrap();
     let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
 
