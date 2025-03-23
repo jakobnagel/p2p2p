@@ -1,3 +1,5 @@
+#![warn(unused_extern_crates)]
+
 mod logic;
 mod mdns;
 mod state;
@@ -5,10 +7,8 @@ mod tcp;
 
 use mdns::Mdns;
 use state::init_app_data;
-use std::collections::HashMap;
 use std::io;
-use std::net::{IpAddr, SocketAddr};
-use std::sync::{mpsc, Arc, Mutex, RwLock};
+use std::sync::mpsc;
 use std::thread;
 use tcp::Tcp;
 
@@ -22,13 +22,13 @@ fn main() {
 
     // mDNS
     let mdns = Mdns::new(ip_sender).unwrap();
-    let mdns_handle = thread::spawn(move || {
+    let _mdns_handle = thread::spawn(move || {
         mdns.run();
     });
 
     // TCP
     let tcp = Tcp::new().unwrap();
-    let tcp_handle = thread::spawn(move || {
+    let _tcp_handle = thread::spawn(move || {
         tcp.run();
     });
 

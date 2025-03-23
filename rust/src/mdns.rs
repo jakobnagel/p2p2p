@@ -1,10 +1,7 @@
 use gethostname::gethostname;
 use local_ip_address::local_ip;
 use mdns_sd::{Receiver, Result, ServiceDaemon, ServiceEvent, ServiceInfo};
-use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    sync::mpsc,
-};
+use std::{net::SocketAddr, sync::mpsc};
 
 pub struct Mdns {
     mdns: ServiceDaemon,
@@ -62,9 +59,5 @@ impl Mdns {
                 }
             }
         }
-    }
-
-    pub fn stop(&self) {
-        self.mdns.shutdown();
     }
 }

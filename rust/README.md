@@ -8,18 +8,18 @@
   - [x] Store clients in a way that's accessible to the main logic (for further communication)
   - [x] Run in a background thread and shutdown gracefully
 - [ ] TCP p2p Communication
-  - [ ] Send & Receive introduction message (RSA Public Keys)
-  - [ ] Send & Receive key change message (RSA Public Keys)
-  - [ ] Send & Receive file_list request
+  - [X] Send & Receive introduction message (RSA Public Keys)
+  - [X] Send & Receive key change message (RSA Public Keys)
+  - [X] Send & Receive file_list request
   - [ ] Send file upload request
   - [ ] Send file download request
   - [ ] Accept file upload request
   - [ ] Accept file download request
 - [ ] RSA & DHE Encryption
-  - [ ] Generate new RSA keys
-  - [ ] Encrypt initial messages with RSA
-  - [ ] Determine AES Session keys over RSA protected messages
-  - [ ] Encrypt later messages with AES
+  - [X] Generate new RSA keys
+  - [X] Sign initial messages with RSA
+  - [X] Determine AES Session keys over RSA protected messages
+  - [X] Encrypt later messages with AES
   - [ ] Store RSA keys in password-protected file
   - [ ] Store local files in password-protected files
 - [ ] CLI User Interaction

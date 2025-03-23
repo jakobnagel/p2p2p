@@ -5,7 +5,7 @@ use lazy_static::lazy_static;
 use rsa::pkcs1v15::{Signature, SigningKey, VerifyingKey};
 use rsa::rand_core::OsRng;
 use rsa::sha2::{Digest, Sha256};
-use rsa::signature::{Keypair, SignerMut, Verifier};
+use rsa::signature::{SignerMut, Verifier};
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use std::collections::HashMap;
 use std::fs;
@@ -53,7 +53,7 @@ pub struct ClientData {
     file_map: Option<HashMap<String, File>>,
 }
 
-pub struct aes_encrypted {
+pub struct AesEncrypted {
     pub ciphertext: Vec<u8>,
     pub nonce: Vec<u8>,
 }
@@ -243,7 +243,7 @@ pub fn set_client_dh_shared(socket_addr: SocketAddr, bob_public: PublicKey) {
     }
 }
 
-pub fn encrypt_aes_message(socket_addr: SocketAddr, plaintext: &[u8]) -> aes_encrypted {
+pub fn encrypt_aes_message(socket_addr: SocketAddr, plaintext: &[u8]) -> AesEncrypted {
     let client_data_map = CLIENT_DATA.read().unwrap();
     let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
 
@@ -254,7 +254,7 @@ pub fn encrypt_aes_message(socket_addr: SocketAddr, plaintext: &[u8]) -> aes_enc
 
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
     let ciphertext = cipher.encrypt(&nonce, plaintext.as_ref()).unwrap();
-    aes_encrypted {
+    AesEncrypted {
         ciphertext,
         nonce: nonce.to_vec(),
     }

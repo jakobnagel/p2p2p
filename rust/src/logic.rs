@@ -1,20 +1,19 @@
 use std::net::SocketAddr;
 
-use crate::state::{self, decrypt_aes_message, get_file_list, hash_file};
+use crate::state;
 use num_traits::cast::ToPrimitive;
 use prost::Message;
 use rsa::pkcs1v15::Signature;
-use rsa::pkcs1v15::{SigningKey, VerifyingKey};
 use rsa::sha2::Sha256;
-use rsa::signature::{Keypair, RandomizedSigner, SignatureEncoding, Verifier};
+use rsa::signature::SignatureEncoding;
 use rsa::traits::PublicKeyParts;
-use rsa::{BigUint, RsaPrivateKey, RsaPublicKey};
+use rsa::{BigUint, RsaPublicKey};
 
 pub mod p2p2p {
     include!(concat!(env!("OUT_DIR"), "/p2p2p.rs"));
 }
 
-use p2p2p::{self as pb, FileUploadRequest};
+use p2p2p as pb;
 use x25519_dalek::PublicKey;
 
 pub fn handle_message(
@@ -29,7 +28,7 @@ pub fn handle_message(
     if use_client_encryption.use_rsa {
         let msg = &signed_message.signed_payload;
         let signature: Signature = Signature::try_from(signed_message.rsa_signature.as_slice())?;
-        state::verify_client_signature(socket_addr, msg, &signature);
+        state::verify_client_signature(socket_addr, msg, &signature)?;
     }
 
     // Decrypt messages if AES has been established
@@ -42,7 +41,7 @@ pub fn handle_message(
             let encrypted_message =
                 pb::EncryptedMessage::decode(signed_message.signed_payload.as_slice())?;
 
-            let decrypted_payload = decrypt_aes_message(
+            let decrypted_payload = state::decrypt_aes_message(
                 socket_addr,
                 &encrypted_message.aes_nonce,
                 &encrypted_message.encrypted_payload,
@@ -104,7 +103,7 @@ pub fn handle_message(
         Some(pb::wrapped_message::Payload::FileListRequest(_)) => {
             // Respond to file list request
 
-            let file_list = get_file_list();
+            let file_list = state::get_file_list();
 
             let mut file_metadata_list: Vec<pb::FileMetadata> = Vec::new();
             for file in file_list {
@@ -154,7 +153,7 @@ pub fn handle_message(
             // Received file download
             state::set_file(state::File {
                 file_name: file_download.file_name,
-                file_hash: hash_file(file_download.file_data.as_slice()),
+                file_hash: state::hash_file(file_download.file_data.as_slice()),
                 file_data: Some(file_download.file_data),
             });
 
@@ -166,7 +165,7 @@ pub fn handle_message(
 
             state::set_file(state::File {
                 file_name: file_upload_request.file_name,
-                file_hash: hash_file(file_upload_request.file_data.as_slice()),
+                file_hash: state::hash_file(file_upload_request.file_data.as_slice()),
                 file_data: Some(file_upload_request.file_data),
             });
 

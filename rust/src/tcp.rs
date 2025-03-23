@@ -1,10 +1,8 @@
 use crate::logic::handle_message;
-use crate::state::{init_client_data, remove_client_data};
-use std::collections::HashMap;
+use crate::state;
 use std::io;
 use std::io::{Read, Write};
-use std::net::{IpAddr, SocketAddr, SocketAddrV4, TcpListener, TcpStream};
-use std::sync::{Arc, Mutex, RwLock};
+use std::net::{SocketAddrV4, TcpListener, TcpStream};
 use std::thread;
 
 pub struct Tcp {
@@ -33,7 +31,7 @@ impl Tcp {
     }
 
     pub fn connect(&self, ip_addr: SocketAddrV4) {
-        let mut stream = TcpStream::connect(ip_addr);
+        let stream = TcpStream::connect(ip_addr);
 
         match stream {
             Ok(stream) => {
@@ -50,7 +48,7 @@ impl Tcp {
     fn handle_client(mut stream: TcpStream) {
         let socket_addr = stream.peer_addr().expect("Failed to get client address");
 
-        init_client_data(socket_addr);
+        state::init_client_data(socket_addr);
 
         let mut buffer = [0; 1024];
         loop {
@@ -95,7 +93,7 @@ impl Tcp {
             }
         }
 
-        remove_client_data(socket_addr);
+        state::remove_client_data(socket_addr);
         println!("Client disconnected: {}", socket_addr);
     }
 }
