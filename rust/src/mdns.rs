@@ -1,9 +1,9 @@
 use crate::state;
 use gethostname::gethostname;
 use local_ip_address::local_ip;
+use log;
 use mdns_sd::{Receiver, Result, ServiceDaemon, ServiceEvent, ServiceInfo};
 use std::net::SocketAddr;
-
 pub struct Mdns {
     mdns: ServiceDaemon,
     mdns_receiver: Receiver<ServiceEvent>,
@@ -47,7 +47,7 @@ impl Mdns {
         for event in receiver {
             match event {
                 ServiceEvent::ServiceResolved(info) => {
-                    println!("{:?}", info);
+                    log::debug!("Broadcasted info: {:?}", info);
                     let port = info.get_port();
                     for ip in info.get_addresses() {
                         let socket_addr = SocketAddr::new(*ip, port);
@@ -56,7 +56,7 @@ impl Mdns {
                     }
                 }
                 other_event => {
-                    println!("Received other event: {:?}", &other_event);
+                    log::debug!("Received other event: {:?}", &other_event);
                 }
             }
         }

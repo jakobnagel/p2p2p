@@ -64,7 +64,7 @@ fn handle_client(mut stream: TcpStream) {
             match stream.read(&mut buffer) {
                 Ok(0) => break, // Connection closed
                 Ok(n) => {
-                    println!("received message from a client {:?}", (&buffer[..n]));
+                    log::debug!("received message from a client {:?}", (&buffer[..n]));
 
                     let signed_message =
                         pb::SignedMessage::decode(&buffer[..n]).expect("NOT A PROTOBUF MESSAGE");

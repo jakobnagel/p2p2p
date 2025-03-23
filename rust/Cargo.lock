@@ -784,6 +784,7 @@ dependencies = [
  "hex",
  "lazy_static",
  "local-ip-address",
+ "log",
  "mdns-sd",
  "num-traits",
  "prost",

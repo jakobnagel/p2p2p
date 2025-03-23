@@ -6,6 +6,9 @@ mod state;
 mod tcp;
 
 use mdns::Mdns;
+use num_traits::cast::ToPrimitive;
+use pb::wrapped_message;
+use rsa::traits::PublicKeyParts;
 use rustyline::error::ReadlineError;
 use rustyline::history::DefaultHistory;
 use rustyline::Editor;
@@ -59,9 +62,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if parts.len() >= 2 {
                     let socket_addr: Result<SocketAddr, _> = parts[1].parse();
                     match socket_addr {
-                        Ok(addr) => {
-                            state::init_client_data(addr);
-                            tcp::connect(addr);
+                        Ok(socket_addr) => {
+                            state::init_client_data(socket_addr);
+                            tcp::connect(socket_addr);
+                            println!("Connected to {} successfully", socket_addr);
+
+                            let alice_dh_public_key = state::get_client_dh_public(socket_addr);
+                            let rsa_public_key = state::get_rsa_key();
+
+                            let wrapped_message = pb::WrappedMessage {
+                                payload: Some(pb::wrapped_message::Payload::Introduction(
+                                    pb::Introduction {
+                                        rsa_public_key: {
+                                            Some(pb::RsaPublicKey {
+                                                e: rsa_public_key.e().to_u32().unwrap(),
+                                                n: rsa_public_key.n().to_bytes_be(),
+                                            })
+                                        },
+                                        diffe_hellman: Some(pb::DiffeHellman {
+                                            dh_public_key: alice_dh_public_key.to_bytes().to_vec(),
+                                        }),
+                                    },
+                                )),
+                            };
+
+                            state::add_outgoing_message(socket_addr, wrapped_message);
                         }
                         Err(e) => {
                             eprintln!("Invalid address: {:?}: {}", parts, e);
@@ -69,6 +94,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 } else {
+                    println!("{}", state::list_clients());
+                    println!("Usage: connect 127.0.0.1:8080");
+                }
+            }
+            Some("send") => {
+                if parts.len() >= 2 {
+                    let socket_addr: Result<SocketAddr, _> = parts[1].parse();
+                    match socket_addr {
+                        Ok(addr) => {
+                            state::init_client_data(addr);
+                            tcp::connect(addr);
+                            println!("Connected to {} successfully", addr);
+                        }
+                        Err(e) => {
+                            eprintln!("Invalid address: {:?}: {}", parts, e);
+                            continue;
+                        }
+                    }
+                } else {
+                    println!("{}", state::list_clients());
                     println!("Usage: connect 127.0.0.1:8080");
                 }
             }

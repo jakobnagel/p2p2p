@@ -162,6 +162,7 @@ pub fn file_hash_to_name(file_hash: &str) -> String {
     let file_system = FILE_SYSTEM.read().unwrap();
     file_system.files.get(file_hash).unwrap().file_name.clone()
 }
+
 pub fn file_name_to_hash(file_name: &str) -> String {
     let file_system = FILE_SYSTEM.read().unwrap();
     for file in file_system.files.values() {
@@ -239,11 +240,16 @@ pub fn remove_client_data(socket_addr: SocketAddr) {
 pub fn list_clients() -> String {
     let client_data_map = CLIENT_DATA.read().unwrap();
     let mut client_list = String::new();
+
+    client_list.push_str(&format!("socket_address, connected, RSA key\n",));
     for (socket_addr, client_data) in client_data_map.iter() {
         let client_data = client_data.read().unwrap();
         client_list.push_str(&format!(
-            "{} {} {:?}\n",
-            socket_addr, client_data.connections, client_data.rsa_public
+            "{} {} {:?} {:?}\n",
+            socket_addr,
+            client_data.connections,
+            client_data.rsa_public,
+            client_data.aes_shared.is_some(),
         ));
     }
     client_list
