@@ -1,18 +1,14 @@
-extern crate prost_build;
+use std::io::Result;
 
-fn main() {
-    let proto_dir = "../pb"; // Path to your proto files
+fn main() -> Result<()> {
+    let proto_dir = "../pb";
 
-    let mut config = prost_build::Config::new();
-    config.include_file("your_package_name.rs"); // If you are using include_file
-
-    config
-        .compile_protos(
-            &[
-                format!("{}/message.proto", proto_dir),
-                format!("{}/security.proto", proto_dir),
-            ],
-            &[proto_dir], // Specify the directory to search for imports
-        )
-        .unwrap();
+    prost_build::compile_protos(
+        &[
+            format!("{}/message.proto", proto_dir),
+            format!("{}/security.proto", proto_dir),
+        ],
+        &[proto_dir],
+    )?;
+    Ok(())
 }

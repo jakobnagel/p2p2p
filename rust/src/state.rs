@@ -7,7 +7,7 @@ use rsa::rand_core::OsRng;
 use rsa::sha2::{Digest, Sha256};
 use rsa::signature::{SignerMut, Verifier};
 use rsa::{RsaPrivateKey, RsaPublicKey};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::net::SocketAddr;
@@ -25,7 +25,8 @@ lazy_static! {
     });
     static ref CLIENT_DATA: RwLock<HashMap<SocketAddr, RwLock<ClientData>>> = RwLock::new(HashMap::new());
     static ref OUTGOING_MESSAGES: RwLock<Vec<(SocketAddr, pb::WrappedMessage)>> = RwLock::new(Vec::new());
-    static ref INCOMING_DOWNLOAD_REQUESTS: RwLock<Vec<(SocketAddr, String)>> = RwLock::new(Vec::new());
+    static ref APPROVED_TRANSFERS: RwLock<HashSet<TransferApproval>> = RwLock::new(HashSet::new());
+    static ref UNAPPROVED_TRANSFERS: RwLock<HashSet<TransferApproval>> = RwLock::new(HashSet::new());
 }
 
 pub struct AppData {
@@ -43,9 +44,17 @@ pub struct File {
     pub file_data: Option<Vec<u8>>,
 }
 
-pub struct EncryptionModes {
-    pub use_rsa: bool,
-    pub use_aes: bool,
+#[derive(Eq, Hash, PartialEq)]
+pub struct TransferApproval {
+    socket_addr: SocketAddr,
+    file_direction: FileDirection,
+    file_hash: String,
+}
+
+#[derive(Eq, Hash, PartialEq)]
+pub enum FileDirection {
+    UPLOAD = 1,
+    DOWNLOAD = 2,
 }
 
 pub struct ClientData {
@@ -60,6 +69,11 @@ pub struct ClientData {
 pub struct AesEncrypted {
     pub ciphertext: Vec<u8>,
     pub nonce: Vec<u8>,
+}
+
+pub struct EncryptionModes {
+    pub use_rsa: bool,
+    pub use_aes: bool,
 }
 
 pub fn init_app_data() {
@@ -139,6 +153,20 @@ pub fn get_file_by_name(file_name: &str) -> File {
     for file in file_system.files.values() {
         if file.file_name == file_name {
             return file.clone();
+        }
+    }
+    panic!("File not found")
+}
+
+pub fn file_hash_to_name(file_hash: &str) -> String {
+    let file_system = FILE_SYSTEM.read().unwrap();
+    file_system.files.get(file_hash).unwrap().file_name.clone()
+}
+pub fn file_name_to_hash(file_name: &str) -> String {
+    let file_system = FILE_SYSTEM.read().unwrap();
+    for file in file_system.files.values() {
+        if file.file_name == file_name {
+            return file.file_hash.clone();
         }
     }
     panic!("File not found")
@@ -312,4 +340,88 @@ pub fn get_outgoing_message(socket_addr: SocketAddr) -> Option<pb::WrappedMessag
 pub fn add_outgoing_message(socket_addr: SocketAddr, wrapped_message: pb::WrappedMessage) {
     let mut outgoing_messages = OUTGOING_MESSAGES.write().unwrap();
     outgoing_messages.push((socket_addr, wrapped_message));
+}
+
+pub fn approve_transfer(socket_addr: SocketAddr, file_direction: FileDirection, file_hash: String) {
+    let approval = TransferApproval {
+        socket_addr,
+        file_direction,
+        file_hash,
+    };
+    {
+        let mut unapproved_transfers = UNAPPROVED_TRANSFERS.write().unwrap();
+        unapproved_transfers.remove(&approval);
+    }
+    {
+        let mut approved_transfers = APPROVED_TRANSFERS.write().unwrap();
+        approved_transfers.insert(approval);
+    }
+}
+
+pub fn reject_transfer(socket_addr: SocketAddr, file_direction: FileDirection, file_hash: String) {
+    let approval = TransferApproval {
+        socket_addr,
+        file_direction,
+        file_hash,
+    };
+    {
+        let mut unapproved_transfers = UNAPPROVED_TRANSFERS.write().unwrap();
+        unapproved_transfers.remove(&approval);
+    }
+    {
+        let mut approved_transfers = APPROVED_TRANSFERS.write().unwrap();
+        approved_transfers.remove(&approval);
+    }
+}
+
+pub fn request_transfer_approval(
+    socket_addr: SocketAddr,
+    file_direction: FileDirection,
+    file_hash: String,
+) -> bool {
+    let approval = TransferApproval {
+        file_direction,
+        socket_addr,
+        file_hash,
+    };
+    {
+        // If already approved, allow operation
+        let consent_messages = APPROVED_TRANSFERS.read().unwrap();
+        if consent_messages.contains(&approval) {
+            return true;
+        }
+    }
+    {
+        // If unapproved, disallow operation
+        let unapproved_consent_messages = UNAPPROVED_TRANSFERS.read().unwrap();
+        if unapproved_consent_messages.contains(&approval) {
+            return false;
+        }
+    }
+    {
+        // If first time requesting, add to unapproved_messages
+        let mut unapproved_consent_messages = UNAPPROVED_TRANSFERS.write().unwrap();
+        unapproved_consent_messages.insert(approval);
+    }
+    return false;
+}
+
+pub fn get_transfer_approval(
+    socket_addr: SocketAddr,
+    file_direction: FileDirection,
+    file_hash: String,
+) -> bool {
+    let approval = TransferApproval {
+        file_direction,
+        socket_addr,
+        file_hash,
+    };
+    {
+        // If already approved, allow operation
+        let consent_messages = APPROVED_TRANSFERS.read().unwrap();
+        if consent_messages.contains(&approval) {
+            return true;
+        }
+    }
+    return false;
 }

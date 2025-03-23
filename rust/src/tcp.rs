@@ -71,16 +71,13 @@ fn handle_client(mut stream: TcpStream) {
                 }
                 Err(e) => match e.kind() {
                     io::ErrorKind::WouldBlock => {
-                        // No data available right now.
                         println!("No data available (WouldBlock)");
                         std::thread::sleep(std::time::Duration::from_millis(10));
                     }
                     io::ErrorKind::Interrupted => {
-                        // Operation was interrupted.  Handle appropriately (maybe retry).
                         println!("Read interrupted");
                     }
                     _ => {
-                        // Other errors (connection reset, etc.) - handle as fatal.
                         eprintln!("Error reading from stream: {}", e);
                         break;
                     }

@@ -1,10 +1,11 @@
 use core::error;
 use std::error::Error;
 use std::net::SocketAddr;
+use std::time::{Duration, Instant};
 
 use crate::pb;
 use crate::pb::WrappedMessage;
-use crate::state;
+use crate::state::{self, request_transfer_approval, FileDirection};
 use num_traits::cast::ToPrimitive;
 use prost::Message;
 use rsa::pkcs1v15::Signature;
@@ -100,9 +101,47 @@ pub fn handle_message(
         }
         Some(pb::wrapped_message::Payload::FileDownloadRequest(file_download_request)) => {
             // Respond to file download request
-            // TODO: Add consent
 
-            let file = state::get_file_by_name(&file_download_request.file_name);
+            let file_name = file_download_request.file_name;
+            let file_hash = state::file_name_to_hash(&file_name);
+
+            if !state::request_transfer_approval(
+                socket_addr,
+                FileDirection::DOWNLOAD,
+                file_hash.clone(),
+            ) {
+                let start_time = Instant::now();
+                let timeout = Duration::from_secs(30);
+                let check_interval = Duration::from_secs(5);
+
+                let mut approved = false;
+                while start_time.elapsed() < timeout {
+                    if state::get_transfer_approval(
+                        socket_addr,
+                        FileDirection::DOWNLOAD,
+                        file_hash.clone(),
+                    ) {
+                        approved = true;
+                        break;
+                    }
+                    std::thread::sleep(check_interval);
+                }
+
+                if !approved {
+                    let error_message = format!(
+                        "Download approval not received for file '{}' (hash: {}) from {} within {} seconds",
+                        file_name, file_hash, socket_addr, timeout.as_secs()
+                    );
+
+                    return Some(pb::WrappedMessage {
+                        payload: Some(pb::wrapped_message::Payload::Error(pb::Error {
+                            message: error_message,
+                        })),
+                    });
+                }
+            }
+
+            let file = state::get_file_by_name(&file_name);
             return Some(pb::WrappedMessage {
                 payload: Some(pb::wrapped_message::Payload::FileDownload(
                     pb::FileDownload {
@@ -124,7 +163,46 @@ pub fn handle_message(
         }
         Some(pb::wrapped_message::Payload::FileUploadRequest(file_upload_request)) => {
             // Received request to upload file
-            // TODO: Add consent
+
+            let file_name = file_upload_request.file_name.clone();
+            let file_data = file_upload_request.file_data.clone();
+            let file_hash = state::hash_file(&file_data);
+
+            if !state::request_transfer_approval(
+                socket_addr,
+                FileDirection::UPLOAD,
+                file_hash.clone(),
+            ) {
+                let start_time = Instant::now();
+                let timeout = Duration::from_secs(30);
+                let check_interval = Duration::from_secs(5);
+
+                let mut approved = false;
+                while start_time.elapsed() < timeout {
+                    if state::get_transfer_approval(
+                        socket_addr,
+                        FileDirection::UPLOAD,
+                        file_hash.clone(),
+                    ) {
+                        approved = true;
+                        break;
+                    }
+                    std::thread::sleep(check_interval);
+                }
+
+                if !approved {
+                    let error_message = format!(
+                        "Upload approval not received for file '{}' (hash: {}) from {} within {} seconds",
+                        file_name, file_hash, socket_addr, timeout.as_secs()
+                    );
+
+                    return Some(pb::WrappedMessage {
+                        payload: Some(pb::wrapped_message::Payload::Error(pb::Error {
+                            message: error_message,
+                        })),
+                    });
+                }
+            }
 
             state::set_file(state::File {
                 file_name: file_upload_request.file_name,

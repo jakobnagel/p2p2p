@@ -7,7 +7,7 @@ mod tcp;
 
 use mdns::Mdns;
 use rustyline::error::ReadlineError;
-use rustyline::history::DefaultHistory; // Import DefaultHistory
+use rustyline::history::DefaultHistory;
 use rustyline::Editor;
 use rustyline::Helper;
 use std::net::SocketAddr;

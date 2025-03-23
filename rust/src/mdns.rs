@@ -2,7 +2,7 @@ use crate::state;
 use gethostname::gethostname;
 use local_ip_address::local_ip;
 use mdns_sd::{Receiver, Result, ServiceDaemon, ServiceEvent, ServiceInfo};
-use std::{net::SocketAddr, sync::mpsc};
+use std::net::SocketAddr;
 
 pub struct Mdns {
     mdns: ServiceDaemon,
