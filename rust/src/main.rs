@@ -6,22 +6,24 @@ mod state;
 mod tcp;
 
 use mdns::Mdns;
-use state::init_app_data;
-use std::io;
-use std::sync::mpsc;
+use rustyline::error::ReadlineError;
+use rustyline::history::DefaultHistory; // Import DefaultHistory
+use rustyline::Editor;
+use rustyline::Helper;
+use std::net::SocketAddr;
+use std::str::FromStr;
 use std::thread;
-use tcp::Tcp;
+use tcp::{connect, Tcp};
+
+pub mod pb {
+    include!(concat!(env!("OUT_DIR"), "/p2p2p.rs"));
+}
 
 fn main() {
-    init_app_data();
-
-    // Mutex & State
-    // Channel to send mDNS addresses to TCP
-    let (ip_sender, ip_receiver) = mpsc::channel();
-    // TODO: Setup communication between CLI and each client_thread
+    state::init_app_data();
 
     // mDNS
-    let mdns = Mdns::new(ip_sender).unwrap();
+    let mdns = Mdns::new().unwrap();
     let _mdns_handle = thread::spawn(move || {
         mdns.run();
     });
@@ -34,27 +36,81 @@ fn main() {
 
     // TODO: Initialize RSA keys and file directory
 
-    loop {
-        let mut input_string = String::new();
-        io::stdin()
-            .read_line(&mut input_string)
-            .expect("error reading line");
+    // Rustyline setup
+    // Use DefaultHistory for the History type
+    let mut rl: Editor<(), DefaultHistory> =
+        Editor::new().expect("Unable to create rustyline editor");
+    if rl.load_history("history.txt").is_err() {
+        println!("No previous history.");
+    }
 
-        input_string = input_string.trim().to_string();
-        input_string = input_string.to_ascii_lowercase();
-        match input_string.as_str() {
-            "help" => {
-                println!("what");
+    loop {
+        let readline = rl.readline(">> ");
+        match readline {
+            Ok(line) => {
+                rl.add_history_entry(line.as_str());
+                let input_string = line.trim().to_ascii_lowercase();
+
+                match input_string.as_str() {
+                    "help" => {
+                        println!("Available commands:");
+                        println!("  help - Show this help message");
+                        println!("  send <address> - Attempt to connect to the given address");
+                        println!("  contacts - List known clients");
+                        println!("  exit - Exit the application");
+                    }
+                    "send" => {
+                        // get input inside the send block
+                        println!("Enter address: ");
+                        let addr_line = rl.readline("send>> ");
+                        match addr_line {
+                            Ok(addr_str) => {
+                                let socket_addr = match SocketAddr::from_str(addr_str.trim()) {
+                                    Ok(addr) => addr,
+                                    Err(e) => {
+                                        eprintln!("Invalid address: {}: {}", addr_str.trim(), e);
+                                        continue;
+                                    }
+                                };
+                                state::init_client_data(socket_addr);
+                                connect(socket_addr);
+                            }
+                            Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
+                                break;
+                            }
+                            Err(err) => {
+                                eprintln!("Error reading address: {:?}", err);
+                                continue;
+                            }
+                        }
+                    }
+                    "receive" => {
+                        println!("Not yet implemented");
+                    }
+                    "contacts" => {
+                        println!("{}", state::list_clients());
+                    }
+                    "exit" => {
+                        break;
+                    }
+                    _ => {
+                        println!("Unknown command. Type 'help' for a list of commands.");
+                    }
+                }
             }
-            "send" => {}
-            "receive" => {}
-            "contacts" => {}
-            "exit" => {
+            Err(ReadlineError::Interrupted) => {
+                println!("CTRL-C");
                 break;
             }
-            _ => {
-                println!("the possible commands are ...");
+            Err(ReadlineError::Eof) => {
+                println!("CTRL-D");
+                break;
+            }
+            Err(err) => {
+                println!("Error: {:?}", err);
+                break;
             }
         }
     }
+    rl.save_history("history.txt").unwrap();
 }

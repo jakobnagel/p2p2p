@@ -1,17 +1,35 @@
-use crate::logic::handle_message;
-use crate::state;
+use prost::Message;
+
+use crate::logic::{handle_message, sign_encrypt_message, unsign_decrypt_message};
+use crate::pb;
+use crate::state::get_outgoing_message;
 use std::io;
 use std::io::{Read, Write};
-use std::net::{SocketAddrV4, TcpListener, TcpStream};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::thread;
 
 pub struct Tcp {
     listener: TcpListener,
 }
 
+pub fn connect(ip_addr: SocketAddr) {
+    let stream = TcpStream::connect(ip_addr);
+
+    match stream {
+        Ok(stream) => {
+            thread::spawn(move || {
+                handle_client(stream);
+            });
+        }
+        Err(e) => {
+            eprintln!("Connection failed: {}", e);
+        }
+    }
+}
+
 impl Tcp {
     pub fn new() -> std::io::Result<Self> {
-        let listener = TcpListener::bind("127.0.0.1:8080")?;
+        let listener = TcpListener::bind("127.0.0.1:5200")?;
         Ok(Tcp { listener })
     }
 
@@ -20,7 +38,7 @@ impl Tcp {
             match stream {
                 Ok(stream) => {
                     thread::spawn(move || {
-                        Self::handle_client(stream);
+                        handle_client(stream);
                     });
                 }
                 Err(e) => {
@@ -29,50 +47,27 @@ impl Tcp {
             }
         }
     }
+}
 
-    pub fn connect(&self, ip_addr: SocketAddrV4) {
-        let stream = TcpStream::connect(ip_addr);
+fn handle_client(mut stream: TcpStream) {
+    let socket_addr = stream.peer_addr().expect("Failed to get client address");
+    let mut buffer = [0; 1024];
 
-        match stream {
-            Ok(stream) => {
-                thread::spawn(move || {
-                    Self::handle_client(stream);
-                });
-            }
-            Err(e) => {
-                eprintln!("Connection failed: {}", e);
-            }
-        }
-    }
-
-    fn handle_client(mut stream: TcpStream) {
-        let socket_addr = stream.peer_addr().expect("Failed to get client address");
-
-        state::init_client_data(socket_addr);
-
-        let mut buffer = [0; 1024];
-        loop {
-            // TODO: Check for commands to send
-
+    loop {
+        let mut wrapped_response = get_outgoing_message(socket_addr);
+        if wrapped_response.is_none() {
             match stream.read(&mut buffer) {
                 Ok(0) => break, // Connection closed
                 Ok(n) => {
-                    println!("received from a client probably");
+                    println!("received message from a client {:?}", buffer);
 
-                    match handle_message(socket_addr, &buffer[..n]) {
-                        Ok(Some(response_data)) => {
-                            if let Err(e) = stream.write_all(&response_data) {
-                                eprintln!("Failed to send response to client: {}", e);
-                                break;
-                            }
-                        }
-                        Ok(None) => {
-                            // No response to send, continue the loop
-                        }
-                        Err(e) => {
-                            eprintln!("Error handling message: {}", e);
-                        }
-                    }
+                    let signed_message =
+                        pb::SignedMessage::decode(&buffer[..n]).expect("NOT A PROTOBUF MESSAGE");
+
+                    let wrapped_message =
+                        unsign_decrypt_message(socket_addr, &signed_message).unwrap();
+
+                    wrapped_response = handle_message(socket_addr, wrapped_message);
                 }
                 Err(e) => match e.kind() {
                     io::ErrorKind::WouldBlock => {
@@ -93,7 +88,15 @@ impl Tcp {
             }
         }
 
-        state::remove_client_data(socket_addr);
-        println!("Client disconnected: {}", socket_addr);
+        if wrapped_response.is_some() {
+            let signed_message =
+                sign_encrypt_message(socket_addr, &wrapped_response.unwrap()).unwrap();
+            stream
+                .write_all(&signed_message.encode_to_vec())
+                .expect("Error writing reply");
+        }
     }
+
+    // state::remove_client_data(socket_addr);
+    println!("Client disconnected: {}", socket_addr);
 }

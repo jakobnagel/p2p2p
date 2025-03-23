@@ -1,5 +1,9 @@
+use core::error;
+use std::error::Error;
 use std::net::SocketAddr;
 
+use crate::pb;
+use crate::pb::WrappedMessage;
 use crate::state;
 use num_traits::cast::ToPrimitive;
 use prost::Message;
@@ -9,53 +13,12 @@ use rsa::signature::SignatureEncoding;
 use rsa::traits::PublicKeyParts;
 use rsa::{BigUint, RsaPublicKey};
 
-pub mod p2p2p {
-    include!(concat!(env!("OUT_DIR"), "/p2p2p.rs"));
-}
-
-use p2p2p as pb;
 use x25519_dalek::PublicKey;
 
 pub fn handle_message(
     socket_addr: SocketAddr,
-    data: &[u8],
-) -> Result<Option<Vec<u8>>, Box<dyn std::error::Error>> {
-    // Decode message into first protobuf type
-    let signed_message: pb::SignedMessage = pb::SignedMessage::decode(data)?;
-
-    // Verify signature if one exists
-    let use_client_encryption = state::get_client_encryption(socket_addr);
-    if use_client_encryption.use_rsa {
-        let msg = &signed_message.signed_payload;
-        let signature: Signature = Signature::try_from(signed_message.rsa_signature.as_slice())?;
-        state::verify_client_signature(socket_addr, msg, &signature)?;
-    }
-
-    // Decrypt messages if AES has been established
-    let wrapped_message: pb::WrappedMessage;
-    match signed_message.encrypted_message() {
-        pb::signed_message::EncryptedMessage::EncryptedWrappedMessage => {
-            assert!(use_client_encryption.use_aes);
-
-            // Decrypt with AES session
-            let encrypted_message =
-                pb::EncryptedMessage::decode(signed_message.signed_payload.as_slice())?;
-
-            let decrypted_payload = state::decrypt_aes_message(
-                socket_addr,
-                &encrypted_message.aes_nonce,
-                &encrypted_message.encrypted_payload,
-            );
-
-            wrapped_message = pb::WrappedMessage::decode(decrypted_payload.as_slice())?;
-        }
-        pb::signed_message::EncryptedMessage::WrappedMessage => {
-            wrapped_message = pb::WrappedMessage::decode(signed_message.signed_payload.as_slice())?;
-        }
-    }
-
-    // Complete operations and generate return message
-    let return_wrapped_message: pb::WrappedMessage;
+    wrapped_message: pb::WrappedMessage,
+) -> Option<pb::WrappedMessage> {
     match wrapped_message.payload {
         Some(pb::wrapped_message::Payload::Introduction(introduction)) => {
             // Introduction message
@@ -65,7 +28,7 @@ pub fn handle_message(
             let rsa_public_key = introduction.rsa_public_key.unwrap();
             let e = BigUint::from(rsa_public_key.e);
             let n = BigUint::from_bytes_be(rsa_public_key.n.as_slice());
-            let public_key = RsaPublicKey::new(n, e)?;
+            let public_key = RsaPublicKey::new(n, e).unwrap();
             let verifying_key = rsa::pkcs1v15::VerifyingKey::<Sha256>::new(public_key);
             state::set_client_rsa_key(socket_addr, verifying_key);
 
@@ -84,9 +47,9 @@ pub fn handle_message(
 
             let rsa_public_key = state::get_rsa_key();
 
-            return_wrapped_message = pb::WrappedMessage {
+            return Some(pb::WrappedMessage {
                 payload: Some(pb::wrapped_message::Payload::Introduction(
-                    p2p2p::Introduction {
+                    pb::Introduction {
                         rsa_public_key: {
                             Some(pb::RsaPublicKey {
                                 e: rsa_public_key.e().to_u32().unwrap(),
@@ -98,7 +61,7 @@ pub fn handle_message(
                         }),
                     },
                 )),
-            };
+            });
         }
         Some(pb::wrapped_message::Payload::FileListRequest(_)) => {
             // Respond to file list request
@@ -112,11 +75,11 @@ pub fn handle_message(
                     hash: file.file_hash.as_bytes().to_vec(),
                 });
             }
-            return_wrapped_message = pb::WrappedMessage {
+            return Some(pb::WrappedMessage {
                 payload: Some(pb::wrapped_message::Payload::FileList(pb::FileList {
                     files: file_metadata_list,
                 })),
-            };
+            });
         }
         Some(pb::wrapped_message::Payload::FileList(file_list)) => {
             // Received file list
@@ -133,21 +96,21 @@ pub fn handle_message(
                 );
             }
             state::set_client_file_list(socket_addr, file_map);
-            return Ok(None);
+            return None;
         }
         Some(pb::wrapped_message::Payload::FileDownloadRequest(file_download_request)) => {
             // Respond to file download request
             // TODO: Add consent
 
             let file = state::get_file_by_name(&file_download_request.file_name);
-            return_wrapped_message = pb::WrappedMessage {
+            return Some(pb::WrappedMessage {
                 payload: Some(pb::wrapped_message::Payload::FileDownload(
                     pb::FileDownload {
                         file_name: file.file_name,
                         file_data: file.file_data.unwrap(),
                     },
                 )),
-            };
+            });
         }
         Some(pb::wrapped_message::Payload::FileDownload(file_download)) => {
             // Received file download
@@ -157,7 +120,7 @@ pub fn handle_message(
                 file_data: Some(file_download.file_data),
             });
 
-            return Ok(None);
+            return None;
         }
         Some(pb::wrapped_message::Payload::FileUploadRequest(file_upload_request)) => {
             // Received request to upload file
@@ -169,50 +132,98 @@ pub fn handle_message(
                 file_data: Some(file_upload_request.file_data),
             });
 
-            return Ok(None);
+            return None;
         }
         Some(pb::wrapped_message::Payload::Error(error)) => {
             eprint!("{}", error.message);
-            return Ok(None);
+            return None;
         }
         _ => {
-            return_wrapped_message = pb::WrappedMessage {
+            return Some(pb::WrappedMessage {
                 payload: Some(pb::wrapped_message::Payload::Error(pb::Error {
                     message: "Unknown message type".to_string(),
                 })),
-            };
+            });
         }
     }
+}
 
+pub fn unsign_decrypt_message(
+    socket_addr: SocketAddr,
+    signed_message: &pb::SignedMessage,
+) -> Result<pb::WrappedMessage, Box<dyn std::error::Error>> {
+    // Check what encryption modes are used
+    let use_client_encryption = state::get_client_encryption(socket_addr);
+    if use_client_encryption.use_rsa {
+        // If Bob's RSA signature is known, verify the signature
+        let msg = &signed_message.signed_payload;
+        let signature: Signature = Signature::try_from(signed_message.rsa_signature.as_slice())?;
+        state::verify_client_signature(socket_addr, msg, &signature)?;
+    }
+
+    let wrapped_message: pb::WrappedMessage;
+    match signed_message.encrypted_message() {
+        pb::signed_message::EncryptedMessage::EncryptedWrappedMessage => {
+            // If AES has been established, decrypt the message
+
+            if !use_client_encryption.use_aes {
+                return Err("Received encrypted message but no session key negotiated".into());
+            }
+
+            // Decrypt with AES session
+            let encrypted_message =
+                pb::EncryptedMessage::decode(signed_message.signed_payload.as_slice())?;
+
+            let decrypted_payload = state::decrypt_aes_message(
+                socket_addr,
+                &encrypted_message.aes_nonce,
+                &encrypted_message.encrypted_payload,
+            );
+
+            wrapped_message = pb::WrappedMessage::decode(decrypted_payload.as_slice())?;
+        }
+        pb::signed_message::EncryptedMessage::WrappedMessage => {
+            // If unencrypted, decode the message
+            wrapped_message = pb::WrappedMessage::decode(signed_message.signed_payload.as_slice())?;
+        }
+    }
+    Ok(wrapped_message)
+}
+
+pub fn sign_encrypt_message(
+    socket_addr: SocketAddr,
+    wrapped_message: &pb::WrappedMessage,
+) -> Result<pb::SignedMessage, Box<dyn std::error::Error>> {
+    // Check what encryption modes are used
     let use_client_encryption = state::get_client_encryption(socket_addr);
 
-    let return_unsigned_message;
+    let payload_bytes;
     if use_client_encryption.use_aes {
+        // If AES has been established, encrypt the message
         let encrypted_message =
-            state::encrypt_aes_message(socket_addr, &return_wrapped_message.encode_to_vec());
+            state::encrypt_aes_message(socket_addr, &wrapped_message.encode_to_vec());
         let return_encrypted_message = pb::EncryptedMessage {
             aes_nonce: encrypted_message.nonce,
             encrypted_payload: encrypted_message.ciphertext,
         };
-        return_unsigned_message = return_encrypted_message.encode_to_vec();
+        payload_bytes = return_encrypted_message.encode_to_vec();
     } else {
-        return_unsigned_message = return_wrapped_message.encode_to_vec();
+        payload_bytes = wrapped_message.encode_to_vec();
     }
 
+    // Set the encrypted_message_enum to mark if AES was used
     let encrypted_message_enum = if use_client_encryption.use_aes {
         pb::signed_message::EncryptedMessage::EncryptedWrappedMessage
     } else {
         pb::signed_message::EncryptedMessage::WrappedMessage
     };
 
-    let signature = state::sign_message(&return_unsigned_message);
-    let return_signed_message = pb::SignedMessage {
+    // Sign the message
+    let signature = state::sign_message(&payload_bytes);
+    let signed_message = pb::SignedMessage {
         encrypted_message: encrypted_message_enum as i32,
+        signed_payload: payload_bytes,
         rsa_signature: signature.to_bytes().to_vec(),
-        signed_payload: return_unsigned_message,
     };
-
-    let return_message = return_signed_message.encode_to_vec();
-
-    Ok(Some(return_message))
+    Ok(signed_message)
 }

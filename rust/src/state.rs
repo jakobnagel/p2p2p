@@ -15,6 +15,8 @@ use std::path::Path;
 use std::sync::RwLock;
 use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
 
+use crate::pb;
+
 lazy_static! {
     // static ref MY_DATA: RwLock<HashMap<String, i32>> = RwLock::new(HashMap::new());
     static ref APP_DATA: RwLock<AppData> = RwLock::new(AppData { private_key: None});
@@ -22,6 +24,8 @@ lazy_static! {
         files: HashMap::new()
     });
     static ref CLIENT_DATA: RwLock<HashMap<SocketAddr, RwLock<ClientData>>> = RwLock::new(HashMap::new());
+    static ref OUTGOING_MESSAGES: RwLock<Vec<(SocketAddr, pb::WrappedMessage)>> = RwLock::new(Vec::new());
+    static ref INCOMING_DOWNLOAD_REQUESTS: RwLock<Vec<(SocketAddr, String)>> = RwLock::new(Vec::new());
 }
 
 pub struct AppData {
@@ -45,8 +49,8 @@ pub struct EncryptionModes {
 }
 
 pub struct ClientData {
+    // hostname: hostname
     connections: u16,
-    message_count: u16,
     rsa_public: Option<VerifyingKey<Sha256>>,
     aes_ephemeral: Option<EphemeralSecret>,
     aes_shared: Option<SharedSecret>,
@@ -60,8 +64,7 @@ pub struct AesEncrypted {
 
 pub fn init_app_data() {
     let mut app_data = APP_DATA.write().unwrap();
-    let bits = 2048;
-    let private_key = rsa::RsaPrivateKey::new(&mut OsRng, bits).expect("failed to generate a key");
+    let private_key = rsa::RsaPrivateKey::new(&mut OsRng, 2048).expect("failed to generate a key");
     // let signing_key = SigningKey::<Sha256>::new(private_key);
     app_data.private_key = Some(private_key);
 }
@@ -162,8 +165,7 @@ pub fn get_client_file_list(socket_addr: SocketAddr) -> Option<HashMap<String, F
 
 pub fn init_client_data(socket_addr: SocketAddr) {
     let client_data = ClientData {
-        connections: 1,
-        message_count: 0,
+        connections: 0,
         rsa_public: None,
         aes_ephemeral: Some(EphemeralSecret::random_from_rng(OsRng)),
         aes_shared: None,
@@ -181,6 +183,26 @@ pub fn remove_client_data(socket_addr: SocketAddr) {
         let mut client_data = client_data_map.get(&socket_addr).unwrap().write().unwrap();
         client_data.connections = 0;
     }
+}
+
+pub fn list_clients() -> String {
+    let client_data_map = CLIENT_DATA.read().unwrap();
+    let mut client_list = String::new();
+    for (socket_addr, client_data) in client_data_map.iter() {
+        let client_data = client_data.read().unwrap();
+        client_list.push_str(&format!(
+            "{} {} {:?}\n",
+            socket_addr, client_data.connections, client_data.rsa_public
+        ));
+    }
+    client_list
+}
+
+pub fn get_client_data(socket_addr: SocketAddr) -> String {
+    let client_data_map = CLIENT_DATA.read().unwrap();
+    let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
+
+    format!("{} {:?}", client_data.connections, client_data.rsa_public)
 }
 
 pub fn get_client_encryption(socket_addr: SocketAddr) -> EncryptionModes {
@@ -272,4 +294,22 @@ pub fn decrypt_aes_message(socket_addr: SocketAddr, nonce: &[u8], ciphertext: &[
     let nonce = aes_gcm::Nonce::from_slice(nonce);
     let decrypted_bytes = cipher.decrypt(nonce, ciphertext.as_ref()).unwrap();
     decrypted_bytes
+}
+
+pub fn get_outgoing_message(socket_addr: SocketAddr) -> Option<pb::WrappedMessage> {
+    let outgoing_messages = OUTGOING_MESSAGES.read().unwrap();
+    for (i, (recipient, _)) in outgoing_messages.iter().enumerate() {
+        if *recipient == socket_addr {
+            drop(outgoing_messages);
+            let mut outgoing_messages = OUTGOING_MESSAGES.write().unwrap();
+            let (_, wrapped_message) = outgoing_messages.remove(i);
+            return Some(wrapped_message);
+        }
+    }
+    None
+}
+
+pub fn add_outgoing_message(socket_addr: SocketAddr, wrapped_message: pb::WrappedMessage) {
+    let mut outgoing_messages = OUTGOING_MESSAGES.write().unwrap();
+    outgoing_messages.push((socket_addr, wrapped_message));
 }

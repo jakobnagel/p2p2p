@@ -1,3 +1,4 @@
+use crate::state;
 use gethostname::gethostname;
 use local_ip_address::local_ip;
 use mdns_sd::{Receiver, Result, ServiceDaemon, ServiceEvent, ServiceInfo};
@@ -6,11 +7,10 @@ use std::{net::SocketAddr, sync::mpsc};
 pub struct Mdns {
     mdns: ServiceDaemon,
     mdns_receiver: Receiver<ServiceEvent>,
-    ip_sender: mpsc::Sender<SocketAddr>,
 }
 
 impl Mdns {
-    pub fn new(ip_sender: mpsc::Sender<SocketAddr>) -> Result<Self> {
+    pub fn new() -> Result<Self> {
         let mdns = ServiceDaemon::new()?;
 
         let service_type = "_ppp._tcp.local.";
@@ -38,7 +38,6 @@ impl Mdns {
         Ok(Mdns {
             mdns,
             mdns_receiver,
-            ip_sender,
         })
     }
 
@@ -48,10 +47,12 @@ impl Mdns {
         for event in receiver {
             match event {
                 ServiceEvent::ServiceResolved(info) => {
+                    println!("{:?}", info);
                     let port = info.get_port();
                     for ip in info.get_addresses() {
                         let socket_addr = SocketAddr::new(*ip, port);
-                        self.ip_sender.send(socket_addr).expect("pipe error");
+                        // let hostname: hostname
+                        state::init_client_data(socket_addr);
                     }
                 }
                 other_event => {
