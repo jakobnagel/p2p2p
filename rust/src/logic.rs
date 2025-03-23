@@ -1,11 +1,8 @@
-use core::error;
-use std::error::Error;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 use crate::pb;
-use crate::pb::WrappedMessage;
-use crate::state::{self, request_transfer_approval, FileDirection};
+use crate::state::{self, FileDirection};
 use num_traits::cast::ToPrimitive;
 use prost::Message;
 use rsa::pkcs1v15::Signature;

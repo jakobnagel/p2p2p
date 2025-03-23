@@ -2,38 +2,24 @@ use prost::Message;
 
 use crate::logic::{handle_message, sign_encrypt_message, unsign_decrypt_message};
 use crate::pb;
-use crate::state::get_outgoing_message;
+use crate::state;
 use std::io;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::thread;
 
-pub struct Tcp {
+pub struct TcpServer {
     listener: TcpListener,
 }
 
-pub fn connect(ip_addr: SocketAddr) {
-    let stream = TcpStream::connect(ip_addr);
-
-    match stream {
-        Ok(stream) => {
-            thread::spawn(move || {
-                handle_client(stream);
-            });
-        }
-        Err(e) => {
-            eprintln!("Connection failed: {}", e);
-        }
-    }
-}
-
-impl Tcp {
+impl TcpServer {
     pub fn new() -> std::io::Result<Self> {
         let listener = TcpListener::bind("127.0.0.1:5200")?;
-        Ok(Tcp { listener })
+        Ok(TcpServer { listener })
     }
 
     pub fn run(&self) {
+        // Incoming connections
         for stream in self.listener.incoming() {
             match stream {
                 Ok(stream) => {
@@ -49,12 +35,28 @@ impl Tcp {
     }
 }
 
+pub fn connect(socket_addr: SocketAddr) {
+    // Outgoing connections
+    let stream = TcpStream::connect(socket_addr);
+
+    match stream {
+        Ok(stream) => {
+            thread::spawn(move || {
+                handle_client(stream);
+            });
+        }
+        Err(e) => {
+            eprintln!("Connection failed: {}", e);
+        }
+    }
+}
+
 fn handle_client(mut stream: TcpStream) {
     let socket_addr = stream.peer_addr().expect("Failed to get client address");
     let mut buffer = [0; 1024];
 
     loop {
-        let mut wrapped_response = get_outgoing_message(socket_addr);
+        let mut wrapped_response = state::get_outgoing_message(socket_addr);
         if wrapped_response.is_none() {
             match stream.read(&mut buffer) {
                 Ok(0) => break, // Connection closed

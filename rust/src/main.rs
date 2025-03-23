@@ -9,11 +9,10 @@ use mdns::Mdns;
 use rustyline::error::ReadlineError;
 use rustyline::history::DefaultHistory;
 use rustyline::Editor;
-use rustyline::Helper;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::thread;
-use tcp::{connect, Tcp};
+use tcp::TcpServer;
 
 pub mod pb {
     include!(concat!(env!("OUT_DIR"), "/p2p2p.rs"));
@@ -29,7 +28,7 @@ fn main() {
     });
 
     // TCP
-    let tcp = Tcp::new().unwrap();
+    let tcp = TcpServer::new().unwrap();
     let _tcp_handle = thread::spawn(move || {
         tcp.run();
     });
@@ -73,7 +72,7 @@ fn main() {
                                     }
                                 };
                                 state::init_client_data(socket_addr);
-                                connect(socket_addr);
+                                tcp::connect(socket_addr);
                             }
                             Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
                                 break;
