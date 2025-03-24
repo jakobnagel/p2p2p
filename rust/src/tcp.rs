@@ -14,7 +14,7 @@ pub struct TcpServer {
 
 impl TcpServer {
     pub fn new() -> std::io::Result<Self> {
-        let listener = TcpListener::bind("127.0.0.1:5200")?;
+        let listener = TcpListener::bind("0.0.0.0:5200")?;
         Ok(TcpServer { listener })
     }
 
@@ -55,6 +55,7 @@ fn handle_client(mut stream: TcpStream) {
     let socket_addr = stream.peer_addr().expect("Failed to get client address");
     state::init_client_data(socket_addr);
     state::increment_client_connections(socket_addr);
+    stream.set_nonblocking(true).unwrap();
 
     let mut buffer = [0; 1024];
 
