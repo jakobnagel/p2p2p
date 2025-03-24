@@ -57,9 +57,11 @@ fn handle_client(mut stream: TcpStream) {
     state::increment_client_connections(socket_addr);
     stream.set_nonblocking(true).unwrap();
 
-    let mut buffer = [0; 1024];
+    let mut use_client_encryption;
 
+    let mut buffer = [0; 1024];
     loop {
+        use_client_encryption = state::get_client_encryption(socket_addr);
         let mut wrapped_response = state::get_outgoing_message(socket_addr);
         if wrapped_response.is_none() {
             match stream.read(&mut buffer) {
@@ -70,15 +72,19 @@ fn handle_client(mut stream: TcpStream) {
                     let signed_message =
                         pb::SignedMessage::decode(&buffer[..n]).expect("NOT A PROTOBUF MESSAGE");
 
-                    let wrapped_message =
-                        unsign_decrypt_message(socket_addr, &signed_message).unwrap();
+                    let wrapped_message = unsign_decrypt_message(
+                        socket_addr,
+                        use_client_encryption.clone(),
+                        &signed_message,
+                    )
+                    .unwrap();
 
                     wrapped_response = handle_message(socket_addr, wrapped_message);
                 }
                 Err(e) => match e.kind() {
                     io::ErrorKind::WouldBlock => {
                         println!("No data available (WouldBlock)");
-                        std::thread::sleep(std::time::Duration::from_millis(10));
+                        std::thread::sleep(std::time::Duration::from_millis(100));
                     }
                     io::ErrorKind::Interrupted => {
                         println!("Read interrupted");
@@ -92,8 +98,12 @@ fn handle_client(mut stream: TcpStream) {
         }
 
         if wrapped_response.is_some() {
-            let signed_message =
-                sign_encrypt_message(socket_addr, &wrapped_response.unwrap()).unwrap();
+            let signed_message = sign_encrypt_message(
+                socket_addr,
+                use_client_encryption.clone(),
+                &wrapped_response.unwrap(),
+            )
+            .unwrap();
             stream
                 .write_all(&signed_message.encode_to_vec())
                 .expect("Error writing reply");

@@ -71,6 +71,7 @@ pub struct AesEncrypted {
     pub nonce: Vec<u8>,
 }
 
+#[derive(Clone)]
 pub struct EncryptionModes {
     pub use_rsa: bool,
     pub use_aes: bool,

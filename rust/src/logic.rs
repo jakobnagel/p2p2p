@@ -225,10 +225,10 @@ pub fn handle_message(
 
 pub fn unsign_decrypt_message(
     socket_addr: SocketAddr,
+    use_client_encryption: state::EncryptionModes,
     signed_message: &pb::SignedMessage,
 ) -> Result<pb::WrappedMessage, Box<dyn std::error::Error>> {
     // Check what encryption modes are used
-    let use_client_encryption = state::get_client_encryption(socket_addr);
     if use_client_encryption.use_rsa {
         // If Bob's RSA signature is known, verify the signature
         let msg = &signed_message.signed_payload;
@@ -267,11 +267,9 @@ pub fn unsign_decrypt_message(
 
 pub fn sign_encrypt_message(
     socket_addr: SocketAddr,
+    use_client_encryption: state::EncryptionModes,
     wrapped_message: &pb::WrappedMessage,
 ) -> Result<pb::SignedMessage, Box<dyn std::error::Error>> {
-    // Check what encryption modes are used
-    let use_client_encryption = state::get_client_encryption(socket_addr);
-
     let payload_bytes;
     if use_client_encryption.use_aes {
         // If AES has been established, encrypt the message
