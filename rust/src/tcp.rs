@@ -83,11 +83,11 @@ fn handle_client(mut stream: TcpStream) {
                 }
                 Err(e) => match e.kind() {
                     io::ErrorKind::WouldBlock => {
-                        println!("No data available (WouldBlock)");
+                        log::debug!("No data available (WouldBlock)");
                         std::thread::sleep(std::time::Duration::from_millis(100));
                     }
                     io::ErrorKind::Interrupted => {
-                        println!("Read interrupted");
+                        log::debug!("Read interrupted");
                     }
                     _ => {
                         eprintln!("Error reading from stream: {}", e);

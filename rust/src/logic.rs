@@ -30,6 +30,11 @@ pub fn handle_message(
             let verifying_key = rsa::pkcs1v15::VerifyingKey::<Sha256>::new(public_key);
             state::set_client_rsa_key(socket_addr, verifying_key);
 
+            if state::get_client_encryption(socket_addr).use_aes {
+                // Don't endlessly negotiate AES
+                return None;
+            }
+
             let alice_dh_public_key = state::get_client_dh_public(socket_addr);
 
             let dh_array: [u8; 32] = introduction
