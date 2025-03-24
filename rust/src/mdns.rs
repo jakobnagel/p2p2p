@@ -4,6 +4,8 @@ use local_ip_address::local_ip;
 use log;
 use mdns_sd::{Receiver, Result, ServiceDaemon, ServiceEvent, ServiceInfo};
 use std::net::SocketAddr;
+
+#[allow(dead_code)]
 pub struct Mdns {
     mdns: ServiceDaemon,
     mdns_receiver: Receiver<ServiceEvent>,

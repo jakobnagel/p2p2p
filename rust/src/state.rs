@@ -62,6 +62,7 @@ pub struct ClientData {
     connections: u16,
     rsa_public: Option<VerifyingKey<Sha256>>,
     aes_ephemeral: Option<EphemeralSecret>,
+    aes_public: Option<PublicKey>,
     aes_shared: Option<SharedSecret>,
     file_map: Option<HashMap<String, File>>,
 }
@@ -159,6 +160,7 @@ pub fn get_file_by_name(file_name: &str) -> File {
     panic!("File not found")
 }
 
+#[allow(dead_code)]
 pub fn file_hash_to_name(file_hash: &str) -> String {
     let file_system = FILE_SYSTEM.read().unwrap();
     file_system.files.get(file_hash).unwrap().file_name.clone()
@@ -202,11 +204,27 @@ pub fn set_client_file_list(socket_addr: SocketAddr, file_map: HashMap<String, F
     client_data.file_map = Some(file_map);
 }
 
+#[allow(dead_code)]
 pub fn get_client_file_list(socket_addr: SocketAddr) -> Option<HashMap<String, File>> {
     let client_data_map = CLIENT_DATA.read().unwrap();
     let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
 
     client_data.file_map.clone()
+}
+
+pub fn print_client_file_list(socket_addr: SocketAddr) {
+    let client_data_map = CLIENT_DATA.read().unwrap();
+    let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
+
+    if client_data.file_map.is_none() {
+        println!("No file list received from {}", socket_addr);
+        return;
+    }
+
+    let file_map = client_data.file_map.as_ref().unwrap();
+    for (file_name, file) in file_map {
+        println!("{} {}", file_name, file.file_hash);
+    }
 }
 
 pub fn init_client_data(socket_addr: SocketAddr) {
@@ -217,10 +235,13 @@ pub fn init_client_data(socket_addr: SocketAddr) {
         }
     }
 
+    let ephemeral_secret = EphemeralSecret::random_from_rng(OsRng);
+    let public_key = PublicKey::from(&ephemeral_secret);
     let client_data = ClientData {
         connections: 0,
         rsa_public: None,
-        aes_ephemeral: Some(EphemeralSecret::random_from_rng(OsRng)),
+        aes_ephemeral: Some(ephemeral_secret),
+        aes_public: Some(public_key),
         aes_shared: None,
         file_map: None,
     };
@@ -234,41 +255,32 @@ pub fn remove_client_data(socket_addr: SocketAddr) {
     {
         let client_data_map = CLIENT_DATA.read().unwrap();
         let mut client_data = client_data_map.get(&socket_addr).unwrap().write().unwrap();
-        client_data.connections = 0;
+        client_data.aes_shared = None;
     }
 }
 
-pub fn list_clients() -> String {
+pub fn print_clients() {
     let client_data_map = CLIENT_DATA.read().unwrap();
-    let mut client_list = String::new();
-
-    client_list.push_str(&format!("socket_address, connected, RSA key\n",));
+    println!("socket, connections, rsa, aes");
     for (socket_addr, client_data) in client_data_map.iter() {
         let client_data = client_data.read().unwrap();
-        client_list.push_str(&format!(
-            "{} {} {:?} {:?}\n",
+        println!(
+            "{} {} {:?} {:?}",
             socket_addr,
             client_data.connections,
-            client_data.rsa_public,
+            client_data.rsa_public.is_some(),
             client_data.aes_shared.is_some(),
-        ));
+        );
     }
-    client_list
 }
 
+#[allow(dead_code)]
 pub fn get_client_list() -> Vec<SocketAddr> {
     let client_data_map = CLIENT_DATA.read().unwrap();
     client_data_map.keys().cloned().collect()
 }
 
-pub fn get_client_data_string(socket_addr: SocketAddr) -> String {
-    let client_data_map = CLIENT_DATA.read().unwrap();
-    let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
-
-    format!("{} {:?}", client_data.connections, client_data.rsa_public)
-}
-
-pub fn get_client_encryption(socket_addr: SocketAddr) -> EncryptionModes {
+pub fn get_client_encryption_modes(socket_addr: SocketAddr) -> EncryptionModes {
     let client_data_map = CLIENT_DATA.read().unwrap();
     let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
 
@@ -278,6 +290,7 @@ pub fn get_client_encryption(socket_addr: SocketAddr) -> EncryptionModes {
     }
 }
 
+#[allow(dead_code)]
 pub fn get_client_rsa_key(socket_addr: SocketAddr) -> Option<VerifyingKey<Sha256>> {
     {
         let client_data_map = CLIENT_DATA.read().unwrap();
@@ -312,8 +325,7 @@ pub fn get_client_dh_public(socket_addr: SocketAddr) -> PublicKey {
         let client_data_map = CLIENT_DATA.read().unwrap();
         let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
 
-        let ephemeral_secret = client_data.aes_ephemeral.as_ref().unwrap();
-        PublicKey::from(ephemeral_secret)
+        client_data.aes_public.unwrap()
     }
 }
 

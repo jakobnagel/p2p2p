@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 
 use crate::pb;
 use crate::state::{self, FileDirection};
+use log::info;
 use num_traits::cast::ToPrimitive;
 use prost::Message;
 use rsa::pkcs1v15::Signature;
@@ -19,6 +20,7 @@ pub fn handle_message(
 ) -> Option<pb::WrappedMessage> {
     match wrapped_message.payload {
         Some(pb::wrapped_message::Payload::Introduction(introduction)) => {
+            info!("received Introduction");
             // Introduction message
             // States RSA public key
             // Both steps of Diffehellman
@@ -29,8 +31,9 @@ pub fn handle_message(
             let public_key = RsaPublicKey::new(n, e).unwrap();
             let verifying_key = rsa::pkcs1v15::VerifyingKey::<Sha256>::new(public_key);
             state::set_client_rsa_key(socket_addr, verifying_key);
+            info!("received RSA key");
 
-            if state::get_client_encryption(socket_addr).use_aes {
+            if state::get_client_encryption_modes(socket_addr).use_aes {
                 // Don't endlessly negotiate AES
                 return None;
             }
@@ -43,13 +46,14 @@ pub fn handle_message(
                 .dh_public_key
                 .try_into()
                 .expect("error fitting into 32 bytes");
-
             let bob_dh_public_key = PublicKey::from(dh_array);
 
             state::set_client_dh_shared(socket_addr, bob_dh_public_key);
+            info!("Calculated shared key");
 
             let rsa_public_key = state::get_rsa_key();
 
+            info!("Sent RSA & DH");
             return Some(pb::WrappedMessage {
                 payload: Some(pb::wrapped_message::Payload::Introduction(
                     pb::Introduction {
@@ -230,22 +234,27 @@ pub fn handle_message(
 
 pub fn unsign_decrypt_message(
     socket_addr: SocketAddr,
-    use_client_encryption: state::EncryptionModes,
+    use_client_encryption: &state::EncryptionModes,
     signed_message: &pb::SignedMessage,
 ) -> Result<pb::WrappedMessage, Box<dyn std::error::Error>> {
+    info!(
+        "decrypting: rsa: {}, aes: {}",
+        use_client_encryption.use_rsa, use_client_encryption.use_aes
+    );
+
     // Check what encryption modes are used
     if use_client_encryption.use_rsa {
         // If Bob's RSA signature is known, verify the signature
         let msg = &signed_message.signed_payload;
         let signature: Signature = Signature::try_from(signed_message.rsa_signature.as_slice())?;
-        state::verify_client_signature(socket_addr, msg, &signature)?;
+        state::verify_client_signature(socket_addr, msg, &signature).expect("Invalid signature");
     }
 
     let wrapped_message: pb::WrappedMessage;
-    match signed_message.encrypted_message() {
+    match pb::signed_message::EncryptedMessage::try_from(signed_message.encrypted_message).unwrap()
+    {
         pb::signed_message::EncryptedMessage::EncryptedWrappedMessage => {
             // If AES has been established, decrypt the message
-
             if !use_client_encryption.use_aes {
                 return Err("Received encrypted message but no session key negotiated".into());
             }
@@ -260,11 +269,13 @@ pub fn unsign_decrypt_message(
                 &encrypted_message.encrypted_payload,
             );
 
-            wrapped_message = pb::WrappedMessage::decode(decrypted_payload.as_slice())?;
+            wrapped_message = pb::WrappedMessage::decode(decrypted_payload.as_slice())
+                .expect("error decoding decrypted_payload");
         }
         pb::signed_message::EncryptedMessage::WrappedMessage => {
             // If unencrypted, decode the message
-            wrapped_message = pb::WrappedMessage::decode(signed_message.signed_payload.as_slice())?;
+            wrapped_message = pb::WrappedMessage::decode(signed_message.signed_payload.as_slice())
+                .expect("error decoding signed_payload");
         }
     }
     Ok(wrapped_message)
@@ -272,7 +283,7 @@ pub fn unsign_decrypt_message(
 
 pub fn sign_encrypt_message(
     socket_addr: SocketAddr,
-    use_client_encryption: state::EncryptionModes,
+    use_client_encryption: &state::EncryptionModes,
     wrapped_message: &pb::WrappedMessage,
 ) -> Result<pb::SignedMessage, Box<dyn std::error::Error>> {
     let payload_bytes;
