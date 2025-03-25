@@ -1,21 +1,24 @@
-use aes_gcm::aead::Aead;
-use aes_gcm::{AeadCore, Aes256Gcm, Key, KeyInit};
+use aes_gcm::{aead, aead::Aead, AeadCore, Aes256Gcm, Key, KeyInit};
 use hex;
 use lazy_static::lazy_static;
 use rsa::pkcs1v15::{Signature, SigningKey, VerifyingKey};
-use rsa::rand_core::OsRng;
+use rsa::rand_core::{OsRng, RngCore};
 use rsa::sha2::{Digest, Sha256};
 use rsa::signature::{SignerMut, Verifier};
 use rsa::{RsaPrivateKey, RsaPublicKey};
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::error::Error;
 use std::fs;
-use std::io;
+use std::io::{self, Read, Write};
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::RwLock;
 use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
 
 use crate::pb;
+
+type Result<T> = std::result::Result<T, Box<dyn Error + Sync + Send>>;
 
 lazy_static! {
     // static ref MY_DATA: RwLock<HashMap<String, i32>> = RwLock::new(HashMap::new());
@@ -29,15 +32,17 @@ lazy_static! {
     static ref UNAPPROVED_TRANSFERS: RwLock<HashSet<TransferApproval>> = RwLock::new(HashSet::new());
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppData {
     private_key: Option<RsaPrivateKey>,
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct FileSystem {
     pub files: HashMap<String, File>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct File {
     pub file_name: String,
     pub file_hash: String,
@@ -79,10 +84,147 @@ pub struct EncryptionModes {
 }
 
 pub fn init_app_data() {
-    let mut app_data = APP_DATA.write().unwrap();
-    let private_key = rsa::RsaPrivateKey::new(&mut OsRng, 2048).expect("failed to generate a key");
-    // let signing_key = SigningKey::<Sha256>::new(private_key);
-    app_data.private_key = Some(private_key);
+    {
+        let app_data = APP_DATA.read().unwrap();
+        if app_data.private_key.is_some() {
+            log::info!("RSA key already exists, skipping new generation.");
+            return;
+        }
+    }
+    {
+        let mut app_data = APP_DATA.write().unwrap();
+        let private_key =
+            rsa::RsaPrivateKey::new(&mut OsRng, 2048).expect("failed to generate a key");
+        log::info!("RSA key generated successfully.");
+        // let signing_key = SigningKey::<Sha256>::new(private_key);
+        app_data.private_key = Some(private_key);
+    }
+}
+
+pub fn save_app_data_to_disk(password: &str) -> io::Result<()> {
+    {
+        let app_data = APP_DATA.read().unwrap();
+        let data = serde_json::to_vec(&*app_data).unwrap();
+
+        let mut salt = [0u8; 16];
+        OsRng.fill_bytes(&mut salt);
+
+        let aes_encrypted = encrypt_password_data(&data, password, &salt).unwrap();
+        let mut file = fs::File::create("./appdata.bin")?;
+        file.write_all(&salt)?;
+        file.write_all(&aes_encrypted.nonce)?;
+        file.write_all(&aes_encrypted.ciphertext)?;
+        log::info!("Saved appdata.bin");
+    }
+    {
+        let file_system = FILE_SYSTEM.read().unwrap();
+        let data = serde_json::to_vec(&*file_system).unwrap();
+
+        let mut salt = [0u8; 16];
+        OsRng.fill_bytes(&mut salt);
+
+        let aes_encrypted = encrypt_password_data(&data, password, &salt).unwrap();
+        let mut file = fs::File::create("./filesystem.bin")?;
+        file.write_all(&salt)?;
+        file.write_all(&aes_encrypted.nonce)?;
+        file.write_all(&aes_encrypted.ciphertext)?;
+        log::info!("Saved filesystem.bin");
+    }
+    Ok(())
+}
+
+pub fn load_app_data_from_disk(password: &str) -> io::Result<()> {
+    {
+        let mut file = fs::File::open("./appdata.bin")?;
+        let mut salt = [0u8; 16];
+        let mut nonce = [0u8; 12];
+        let mut ciphertext = Vec::new();
+
+        file.read_exact(&mut salt)?;
+        file.read_exact(&mut nonce)?;
+        file.read_to_end(&mut ciphertext)?;
+        log::info!("Loaded appdata.bin");
+
+        let decrypted_data = decrypt_password_data(&ciphertext, &nonce, password, &salt);
+        if decrypted_data.is_err() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Invalid password",
+            ));
+        }
+        log::info!("Decrypted appdata.bin successfully");
+
+        let loaded_app_data = serde_json::from_slice(&decrypted_data.unwrap())?;
+        log::info!("loaded_app_data: {:?}", loaded_app_data);
+
+        let mut app_data = APP_DATA.write().unwrap();
+        *app_data = loaded_app_data;
+    }
+    {
+        let mut file = fs::File::open("./filesystem.bin")?;
+        let mut salt = [0u8; 16];
+        let mut nonce = [0u8; 12];
+        let mut ciphertext = Vec::new();
+
+        file.read_exact(&mut salt)?;
+        file.read_exact(&mut nonce)?;
+        file.read_to_end(&mut ciphertext)?;
+        log::info!("Loaded filesystem.bin");
+
+        let decrypted_data = decrypt_password_data(&ciphertext, &nonce, password, &salt);
+        if decrypted_data.is_err() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Invalid password",
+            ));
+        }
+        log::info!("Decrypted filesystem.bin successfully");
+
+        let loaded_file_system = serde_json::from_slice(&decrypted_data.unwrap())?;
+        log::info!("loaded_file_system: {:?}", loaded_file_system);
+
+        let mut file_system = FILE_SYSTEM.write().unwrap();
+        *file_system = loaded_file_system;
+    }
+
+    Ok(())
+}
+
+pub fn does_app_data_exist() -> bool {
+    Path::new("./appdata.bin").exists()
+}
+
+fn get_key_from_password(password: &str, salt: &[u8]) -> Key<Aes256Gcm> {
+    let mut key = [0u8; 32];
+    pbkdf2::pbkdf2_hmac::<Sha256>(password.as_bytes(), salt, 100000, &mut key);
+    key.into()
+}
+
+fn encrypt_password_data(
+    plaintext: &[u8],
+    password: &str,
+    salt: &[u8],
+) -> aead::Result<AesEncrypted> {
+    let key = get_key_from_password(password, salt);
+    let cipher = aes_gcm::Aes256Gcm::new(&key);
+    let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+    Ok(AesEncrypted {
+        ciphertext: cipher.encrypt(&nonce, plaintext).unwrap(),
+        nonce: nonce.to_vec(),
+    })
+}
+
+fn decrypt_password_data(
+    ciphertext: &[u8],
+    nonce: &[u8],
+    password: &str,
+    salt: &[u8],
+) -> aead::Result<Vec<u8>> {
+    let key = get_key_from_password(password, salt);
+    let cipher = Aes256Gcm::new(&key);
+    let nonce = aes_gcm::Nonce::from_slice(nonce);
+
+    cipher.decrypt(nonce, ciphertext)
 }
 
 pub fn sign_message(msg: &[u8]) -> Signature {
@@ -145,6 +287,13 @@ pub fn get_file_list() -> Vec<File> {
     file_system.files.values().cloned().collect()
 }
 
+pub fn print_file_list() {
+    let file_system = FILE_SYSTEM.read().unwrap();
+    for file in file_system.files.values() {
+        println!("{} {}", file.file_name, file.file_hash);
+    }
+}
+
 pub fn get_file_by_hash(file_hash: &str) -> File {
     let file_system = FILE_SYSTEM.read().unwrap();
     file_system.files.get(file_hash).unwrap().clone()
@@ -160,7 +309,6 @@ pub fn get_file_by_name(file_name: &str) -> File {
     panic!("File not found")
 }
 
-#[allow(dead_code)]
 pub fn file_hash_to_name(file_hash: &str) -> String {
     let file_system = FILE_SYSTEM.read().unwrap();
     file_system.files.get(file_hash).unwrap().file_name.clone()
@@ -204,7 +352,6 @@ pub fn set_client_file_list(socket_addr: SocketAddr, file_map: HashMap<String, F
     client_data.file_map = Some(file_map);
 }
 
-#[allow(dead_code)]
 pub fn get_client_file_list(socket_addr: SocketAddr) -> Option<HashMap<String, File>> {
     let client_data_map = CLIENT_DATA.read().unwrap();
     let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
@@ -274,7 +421,6 @@ pub fn print_clients() {
     }
 }
 
-#[allow(dead_code)]
 pub fn get_client_list() -> Vec<SocketAddr> {
     let client_data_map = CLIENT_DATA.read().unwrap();
     client_data_map.keys().cloned().collect()
@@ -290,7 +436,6 @@ pub fn get_client_encryption_modes(socket_addr: SocketAddr) -> EncryptionModes {
     }
 }
 
-#[allow(dead_code)]
 pub fn get_client_rsa_key(socket_addr: SocketAddr) -> Option<VerifyingKey<Sha256>> {
     {
         let client_data_map = CLIENT_DATA.read().unwrap();

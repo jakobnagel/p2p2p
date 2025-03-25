@@ -1,11 +1,9 @@
-use log::info;
 use prost::Message;
 
 use crate::logic::{handle_message, sign_encrypt_message, unsign_decrypt_message};
 use crate::pb;
 use crate::state;
-use std::io;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::thread;
 
@@ -39,11 +37,17 @@ impl TcpServer {
 
 pub fn connect(socket_addr: SocketAddr) {
     // Outgoing connections
+    log::info!("Initiating connection to {}", socket_addr);
     let stream = TcpStream::connect(socket_addr);
     state::init_client_data(socket_addr);
 
     match stream {
         Ok(stream) => {
+            log::info!(
+                "Connection to {} successful, handing off to handle_client()",
+                socket_addr
+            );
+
             thread::spawn(move || {
                 handle_client(stream);
             });
@@ -68,23 +72,47 @@ fn handle_client(mut stream: TcpStream) {
     let mut buffer = [0; 1024 * 1024];
     loop {
         use_client_encryption = state::get_client_encryption_modes(socket_addr);
+
         let mut wrapped_response = state::get_outgoing_message(socket_addr);
+        if wrapped_response.is_some() {
+            log::info!("[{}]: Found outgoing message", socket_addr);
+        }
 
         if wrapped_response.is_none() {
             match stream.read(&mut buffer) {
                 Ok(0) => break, // Connection closed
                 Ok(n) => {
-                    log::info!("received message from a client {:?}", (&buffer[..n]));
+                    log::info!(
+                        "[{}]: Using RSA {}, Using AES {}",
+                        socket_addr,
+                        use_client_encryption.use_rsa,
+                        use_client_encryption.use_aes
+                    );
+
+                    log::info!(
+                        "[{}]: received message from a client of size {}",
+                        socket_addr,
+                        n
+                    );
 
                     let signed_message =
                         pb::SignedMessage::decode(&buffer[..n]).expect("NOT A PROTOBUF MESSAGE");
 
+                    log::info!(
+                        "[{}]: decoded message into protobuf, passing to unsign_decrypt_message()",
+                        socket_addr
+                    );
                     let wrapped_message = unsign_decrypt_message(
                         socket_addr,
                         &use_client_encryption,
                         &signed_message,
                     )
                     .unwrap();
+
+                    log::info!(
+                        "[{}]: unwrapped message, passing to handle_message",
+                        socket_addr
+                    );
 
                     wrapped_response = handle_message(socket_addr, wrapped_message);
                 }
@@ -105,15 +133,18 @@ fn handle_client(mut stream: TcpStream) {
         }
 
         if wrapped_response.is_some() {
+            log::info!("[{}]: Signing & encrypting outgoing message", socket_addr);
             let signed_message = sign_encrypt_message(
                 socket_addr,
                 &use_client_encryption,
                 &wrapped_response.unwrap(),
             )
             .unwrap();
+            log::info!("[{}]: Sending outgoing message", socket_addr);
             stream
                 .write_all(&signed_message.encode_to_vec())
                 .expect("Error writing reply");
+            log::info!("[{}]: Sent outgoing message", socket_addr);
         }
     }
 

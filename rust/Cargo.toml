@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 prost = "0.13.5"
-rsa = { version = "0.9", features = ["sha2"] }
+rsa = { version = "0.9", features = ["sha2", "serde"] }
 x25519-dalek = "2.0"
 gethostname = "1"
 mdns-sd = "0.13.3"
@@ -19,6 +19,10 @@ crossterm = "0.28.1"
 ratatui = "0.29.0"
 log = "0.4.26"
 env_logger = "0.11.7"
+serde = "1.0.219"
+serde_json = "1.0.140"
+pbkdf2 = "0.12.2"
+rpassword = "7.3.1"
 
 [build-dependencies]
 prost-build = "0.13.5"

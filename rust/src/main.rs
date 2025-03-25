@@ -5,16 +5,14 @@ mod mdns;
 mod state;
 mod tcp;
 
-use mdns::Mdns;
 use num_traits::cast::ToPrimitive;
 use rsa::traits::PublicKeyParts;
 use rustyline::history::DefaultHistory;
 use rustyline::Editor;
-use state::file_name_to_hash;
+use state::get_rsa_key;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::thread;
-use tcp::TcpServer;
 
 pub mod pb {
     include!(concat!(env!("OUT_DIR"), "/p2p2p.rs"));
@@ -23,23 +21,39 @@ pub mod pb {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     println!("Starting...");
-    thread::spawn(move || {
-        // RSA key generation is super slow
-        // Will replace once keys are
-        state::init_app_data();
-    });
 
-    // TODO Import data on 2nd startup
+    let password: String;
+    match state::does_app_data_exist() {
+        false => {
+            println!("No previous data found");
+            password = rpassword::prompt_password("Enter a new password: ").unwrap();
+            log::info!("Password entered (length: {})", password.len());
+        }
+        true => {
+            password = rpassword::prompt_password("Enter your existing password: ").unwrap();
+            log::info!("Password entered (length: {})", password.len());
+            match state::load_app_data_from_disk(&password) {
+                Ok(_) => {}
+                Err(e1) => {
+                    if e1.kind() == std::io::ErrorKind::InvalidData {
+                        println!("Wrong password");
+                        std::process::exit(1);
+                    }
+                }
+            }
+        }
+    }
+    state::init_app_data();
 
     // mDNS
     let _mdns_handle = thread::spawn(move || {
-        let mdns = Mdns::new().unwrap();
+        let mdns = mdns::Mdns::new().unwrap();
         mdns.run();
     });
 
     // TCP
     let _tcp_handle = thread::spawn(move || {
-        let tcp = TcpServer::new().unwrap();
+        let tcp = tcp::TcpServer::new().unwrap();
         tcp.run();
     });
 
@@ -120,7 +134,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 )),
                             };
                             state::add_outgoing_message(socket_addr, wrapped_message);
-                            
+
                             state::print_client_file_list(socket_addr);
                         }
                         Err(e) => {
@@ -193,8 +207,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("Usage: download 127.0.0.1:8080 file_name");
                 }
             }
-            Some("contacts") => {
-                state::print_clients();
+            Some("contact") => {
+                if parts.len() >= 2 {
+                    let socket_addr: Result<SocketAddr, _> = parts[1].parse();
+                    match socket_addr {
+                        Ok(socket_addr) => {
+                            state::print_client_file_list(socket_addr);
+                        }
+                        Err(e) => {
+                            eprintln!("Invalid address: {:?}: {}", parts, e);
+                            continue;
+                        }
+                    }
+                } else {
+                    state::print_clients();
+                    println!("Usage: contact 127.0.0.1:8080");
+                }
             }
             Some("approve") => {
                 if parts.len() >= 4 {
@@ -234,6 +262,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("Usage: reject <socket_addr> <upload|download> <file_hash>");
                 }
             }
+            Some("ls") => {
+                state::print_file_list();
+            }
             Some("import") => {
                 if parts.len() >= 2 {
                     let path = std::path::Path::new(parts[1]);
@@ -246,7 +277,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some("export") => {
                 if parts.len() >= 3 {
                     let file_name = parts[1].to_string();
-                    let file_hash = file_name_to_hash(&file_name);
+                    let file_hash = state::file_name_to_hash(&file_name);
                     let path = std::path::Path::new(parts[2]);
 
                     let file_path =
@@ -259,15 +290,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some("exit") => {
                 break;
             }
-            None => {} // Empty line, do nothing.
+            None => {}
             _ => {
                 println!("Unknown command. Type 'help' for a list of commands.");
             }
         }
     }
 
-    // TODO: Save App Data on shutdown
+    println!("Saving RSA private key to appdata.bin");
+    println!("Saving files to filesystem.bin");
+    state::save_app_data_to_disk(&password)?;
     rl.save_history("history.txt").unwrap();
-
     Ok(())
 }
