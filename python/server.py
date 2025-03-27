@@ -46,7 +46,7 @@ def main():
             conn, addr = s.accept()
             with conn:
                 print(f"Connected by {addr}")
-                server_introduce(conn, pubkey, privkey)
+                server_introduce(conn, privkey, pubkey)
                 while True:
                     data = conn.recv(1024)
                     if not data:
