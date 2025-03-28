@@ -1,20 +1,29 @@
 import message_pb2
 import security_pb2
 from util.rsa import get_RSA_signature, verify_RSA_signature
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization as crypto_serialization, hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives.asymmetric import rsa, ec
 
 def client_introduce(sock, privkey, pubkey):
     rsa_key = security_pb2.RsaPublicKey()
     rsa_key.n = pubkey.public_numbers().n.to_bytes(256, 'big')
     rsa_key.e = pubkey.public_numbers().e
 
+    # generate a private key for DHKE, pack public key
     dh = security_pb2.DiffeHellman()
-    dh.dh_public_key = b"I'm a key!"
+    dh_private_key = ec.generate_private_key(
+        ec.SECP256R1()
+    )
+    dh_public_key = dh_private_key.public_key().public_bytes(
+        crypto_serialization.Encoding.PEM,
+        crypto_serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    dh.dh_public_key = dh_public_key
 
     introduction = message_pb2.Introduction()
     introduction.rsa_public_key.CopyFrom(rsa_key)
     introduction.diffe_hellman.CopyFrom(dh)
-
 
     wrapped_msg = message_pb2.WrappedMessage()
     wrapped_msg.introduction.CopyFrom(introduction)
@@ -50,7 +59,15 @@ def client_introduce(sock, privkey, pubkey):
         print("Bad signature")
         conn.close()
         exit()
-    print(serialized_msg)
+
+    received_dh_public_key = crypto_serialization.load_pem_public_key(received_payload.introduction.diffe_hellman.dh_public_key)
+
+    # derive DH shared key
+    dh_key = dh_private_key.exchange(
+        ec.ECDH(), received_dh_public_key
+    )
+
+    return received_key, dh_key
 
 
 
@@ -82,7 +99,16 @@ def server_introduce(conn, privkey, pubkey):
     rsa_key.e = pubkey.public_numbers().e
 
     dh = security_pb2.DiffeHellman()
-    dh.dh_public_key = b"I'm a key!"
+    # generate a private key for DHKE, pack public key
+    dh = security_pb2.DiffeHellman()
+    dh_private_key = ec.generate_private_key(
+        ec.SECP256R1()
+    )
+    dh_public_key = dh_private_key.public_key().public_bytes(
+        crypto_serialization.Encoding.PEM,
+        crypto_serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    dh.dh_public_key = dh_public_key
 
     introduction = message_pb2.Introduction()
     introduction.rsa_public_key.CopyFrom(rsa_key)
@@ -99,6 +125,14 @@ def server_introduce(conn, privkey, pubkey):
     signed_msg.rsa_signature = signature
 
     conn.sendall(signed_msg.SerializeToString())
+
+    received_dh_public_key = crypto_serialization.load_pem_public_key(received_payload.introduction.diffe_hellman.dh_public_key)
+    # derive DH shared key
+    dh_key = dh_private_key.exchange(
+        ec.ECDH(), received_dh_public_key
+    )
+
+    return received_key, dh_key
 
 def verify_msg(serialized_msg):
     # called instantly on receiving message. Checks signature.
@@ -120,4 +154,3 @@ def verify_msg(serialized_msg):
         print("Bad signature")
         conn.close()
         exit()
-    print(serialized_msg)

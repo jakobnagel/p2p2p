@@ -67,6 +67,7 @@ def get_RSA_signature(key, msg):
     return signature
 
 # Throws exception if invalid
+    print(serialized_msg)
 def verify_RSA_signature(pubkey, sig, msg):
     chosen_hash = hashes.SHA256()
     hasher = hashes.Hash(chosen_hash)
