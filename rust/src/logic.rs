@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 
 use crate::pb;
 use crate::state::{self, FileDirection};
+use colored::*;
 use log::info;
 use num_traits::cast::ToPrimitive;
 use prost::Message;
@@ -169,8 +170,12 @@ pub fn handle_message(
                     file_hash,
                 );
                 println!(
-                    "[{}]: Incoming request to download {}, type `approve {} download {}`",
-                    socket_addr, file_name, socket_addr, file_name
+                    "[{}]: Incoming request to download {}, type {}",
+                    socket_addr,
+                    file_name,
+                    format!("approve {} download {}", socket_addr, file_name)
+                        .yellow()
+                        .bold()
                 );
 
                 let start_time = Instant::now();
@@ -230,11 +235,9 @@ pub fn handle_message(
                 file_hash
             );
 
-            log::info!(
-                "[{}]: returning file data {} {}",
-                socket_addr,
-                file_name,
-                file_hash
+            println!(
+                "[{}]: transfering file data {} {}",
+                socket_addr, file_name, file_hash
             );
             let file = state::get_file_by_name(&file_name);
             return Some(pb::WrappedMessage {
@@ -250,11 +253,9 @@ pub fn handle_message(
             let file_name = file_download.file_name;
             let file_hash = state::hash_file(file_download.file_data.as_slice());
 
-            log::info!(
+            println!(
                 "[{}]: received download {} {}",
-                socket_addr,
-                file_name,
-                file_hash
+                socket_addr, file_name, file_hash
             );
 
             // if !state::get_transfer_approval(
@@ -312,8 +313,12 @@ pub fn handle_message(
                     file_hash
                 );
                 println!(
-                    "[{}]: Incoming request to upload {}, type `approve {} upload {}`",
-                    socket_addr, file_name, socket_addr, file_name
+                    "[{}]: Incoming request to upload {}, type {}",
+                    socket_addr,
+                    file_name,
+                    format!("approve {} upload {}", socket_addr, file_name)
+                        .yellow()
+                        .bold()
                 );
 
                 let start_time = Instant::now();

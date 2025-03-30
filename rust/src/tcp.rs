@@ -120,7 +120,7 @@ fn handle_client(mut stream: TcpStream) {
                 Err(e) => match e.kind() {
                     io::ErrorKind::WouldBlock => {
                         log::debug!("No data available (WouldBlock)");
-                        thread::sleep(std::time::Duration::from_millis(100));
+                        thread::sleep(std::time::Duration::from_millis(10));
                     }
                     io::ErrorKind::Interrupted => {
                         log::debug!("Read interrupted");
@@ -145,6 +145,7 @@ fn handle_client(mut stream: TcpStream) {
             stream
                 .write_all(&signed_message.encode_to_vec())
                 .expect("Error writing reply");
+            stream.flush().unwrap();
             log::info!("[{}]: Sent outgoing message", socket_addr);
         }
     }

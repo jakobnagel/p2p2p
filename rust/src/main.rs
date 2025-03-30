@@ -286,54 +286,57 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     );
                 }
             },
-            Some("approve") => match parts.get(1..3) {
-                Some([socket_addr_str, file_direction_str, file_name_str]) => {
-                    let socket_addr = match SocketAddr::from_str(socket_addr_str) {
-                        Ok(socket_addr) => socket_addr,
-                        Err(e) => {
-                            eprintln!("Error parsing address {}", e);
-                            continue;
-                        }
-                    };
-                    let file_direction = match *file_direction_str {
-                        "upload" => state::FileDirection::UPLOAD,
-                        "download" => state::FileDirection::DOWNLOAD,
-                        _ => {
-                            eprintln!("Invalid file direction. Must be 'upload' or 'download'");
-                            continue;
-                        }
-                    };
+            Some("approve") => {
+                println!("{:?}", parts);
+                match parts.get(1..4) {
+                    Some([socket_addr_str, file_direction_str, file_name_str]) => {
+                        let socket_addr = match SocketAddr::from_str(socket_addr_str) {
+                            Ok(socket_addr) => socket_addr,
+                            Err(e) => {
+                                eprintln!("Error parsing address {}", e);
+                                continue;
+                            }
+                        };
+                        let file_direction = match *file_direction_str {
+                            "upload" => state::FileDirection::UPLOAD,
+                            "download" => state::FileDirection::DOWNLOAD,
+                            _ => {
+                                eprintln!("Invalid file direction. Must be 'upload' or 'download'");
+                                continue;
+                            }
+                        };
 
-                    let file_name = file_name_str.to_string();
+                        let file_name = file_name_str.to_string();
 
-                    let get_hash_function = match file_direction {
-                        state::FileDirection::UPLOAD => state::get_pending_hash_from_name,
-                        state::FileDirection::DOWNLOAD => state::file_name_to_hash,
-                    };
-                    let file_hash: String = match get_hash_function(&file_name) {
-                        Some(hash) => hash,
-                        None => {
-                            eprintln!(
-                                "File '{}' not found for direction: {:?}",
-                                file_name, file_direction
-                            );
-                            continue;
-                        }
-                    };
+                        let get_hash_function = match file_direction {
+                            state::FileDirection::UPLOAD => state::get_pending_hash_from_name,
+                            state::FileDirection::DOWNLOAD => state::file_name_to_hash,
+                        };
+                        let file_hash: String = match get_hash_function(&file_name) {
+                            Some(hash) => hash,
+                            None => {
+                                eprintln!(
+                                    "File '{}' not found for direction: {:?}",
+                                    file_name, file_direction
+                                );
+                                continue;
+                            }
+                        };
 
-                    state::approve_transfer(socket_addr, file_direction, file_name, file_hash);
-                    println!("Approved transfer");
+                        state::approve_transfer(socket_addr, file_direction, file_name, file_hash);
+                        println!("Approved transfer");
+                    }
+                    _ => {
+                        println!(
+                            "Usage: {}",
+                            "approve 256.256.256.256:5200 <upload|download> <file_name>"
+                                .yellow()
+                                .bold()
+                        );
+                    }
                 }
-                _ => {
-                    println!(
-                        "Usage: {}",
-                        "approve 256.256.256.256:5200 <upload|download> <file_name>"
-                            .yellow()
-                            .bold()
-                    );
-                }
-            },
-            Some("reject") => match parts.get(1..3) {
+            }
+            Some("reject") => match parts.get(1..4) {
                 Some([socket_addr_str, file_direction_str, file_name_str]) => {
                     let socket_addr = match SocketAddr::from_str(socket_addr_str) {
                         Ok(socket_addr) => socket_addr,
