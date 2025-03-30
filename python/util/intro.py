@@ -54,7 +54,6 @@ def client_introduce(sock, privkey, pubkey):
 
     try:
         verify_RSA_signature(received_key, received_msg.rsa_signature, received_msg.signed_payload)
-        print("Good signature")
     except:
         print("Bad signature")
         conn.close()
@@ -76,8 +75,6 @@ def server_introduce(conn, privkey, pubkey):
     serialized_msg = conn.recv(1024)
     received_msg = message_pb2.SignedMessage()
     received_msg.ParseFromString(serialized_msg)
-
-    received_msg.ParseFromString(serialized_msg)
     received_payload = message_pb2.WrappedMessage()
 
     received_payload.ParseFromString(received_msg.signed_payload)
@@ -87,7 +84,6 @@ def server_introduce(conn, privkey, pubkey):
 
     try:
         verify_RSA_signature(received_key, received_msg.rsa_signature, received_msg.signed_payload)
-        print("Good signature")
     except:
         print("Bad signature")
         conn.close()
@@ -134,23 +130,3 @@ def server_introduce(conn, privkey, pubkey):
 
     return received_key, dh_key
 
-def verify_msg(serialized_msg):
-    # called instantly on receiving message. Checks signature.
-    received_msg = message_pb2.SignedMessage()
-    received_msg.ParseFromString(serialized_msg)
-
-    received_msg.ParseFromString(serialized_msg)
-    received_payload = message_pb2.WrappedMessage()
-
-    received_payload.ParseFromString(received_msg.signed_payload)
-    n = int.from_bytes(received_payload.introduction.rsa_public_key.n, 'big')
-    e = received_payload.introduction.rsa_public_key.e
-    received_key = rsa.RSAPublicNumbers(e, n).public_key()
-
-    try:
-        verify_RSA_signature(received_key, received_msg.rsa_signature, received_msg.signed_payload)
-        print("Good signature")
-    except:
-        print("Bad signature")
-        conn.close()
-        exit()

@@ -2,6 +2,7 @@ from cryptography.hazmat.primitives import serialization as crypto_serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, padding, utils
 from cryptography.hazmat.backends import default_backend as crypto_default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key, load_pem_public_key
+from util.hash import hash_data
 import os.path
 
 private_path = "keys/rsaprivkey.pem"
@@ -53,9 +54,7 @@ def get_RSA_public_key():
 
 def get_RSA_signature(key, msg):
     chosen_hash = hashes.SHA256()
-    hasher = hashes.Hash(chosen_hash)
-    hasher.update(msg)
-    digest = hasher.finalize()
+    digest = hash_data(msg)
     signature = key.sign(
             digest,
             padding.PSS(
@@ -70,9 +69,7 @@ def get_RSA_signature(key, msg):
     print(serialized_msg)
 def verify_RSA_signature(pubkey, sig, msg):
     chosen_hash = hashes.SHA256()
-    hasher = hashes.Hash(chosen_hash)
-    hasher.update(msg)
-    digest = hasher.finalize()
+    digest = hash_data(msg)
     pubkey.verify(
             sig,
             digest,

@@ -9,6 +9,7 @@ import time
 
 from util.rsa import get_RSA_private_key, get_RSA_public_key, get_RSA_signature, verify_RSA_signature
 from util.intro import server_introduce
+from util.message import consume_message
 from zeroconf import ServiceInfo, Zeroconf, __version__
 
 
@@ -46,14 +47,22 @@ def main():
             conn, addr = s.accept()
             with conn:
                 print(f"Connected by {addr}")
-                server_introduce(conn, privkey, pubkey)
-                while True:
-                    data = conn.recv(1024)
-                    if not data:
-                        break
-                    print("got", data.decode())
-                    data = input("what to send back?").encode()
-                    conn.sendall(data)
+                peer_rsa_pubkey, shared_dh_key = server_introduce(conn, privkey, pubkey)
+
+                print("getting msg")
+                data = conn.recv(1024)
+                print("consuming msg")
+                reply = consume_message(privkey, peer_rsa_pubkey, shared_dh_key, data)
+                print("sending msg")
+                conn.sendall(reply)
+
+                # while True:
+                #     data = conn.recv(1024)
+                #     if not data:
+                #        break
+                #     print("got", data.decode())
+                #     data = input("what to send back?").encode()
+                #     conn.sendall(data)
     except KeyboardInterrupt:
         pass
     finally:
