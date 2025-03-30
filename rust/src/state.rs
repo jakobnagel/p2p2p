@@ -53,10 +53,11 @@ pub struct File {
 pub struct TransferApproval {
     socket_addr: SocketAddr,
     file_direction: FileDirection,
+    file_name: String,
     file_hash: String,
 }
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Debug, Eq, Hash, PartialEq)]
 pub enum FileDirection {
     UPLOAD = 1,
     DOWNLOAD = 2,
@@ -321,6 +322,7 @@ pub fn file_name_to_hash(file_name: &str) -> Option<String> {
             return Some(file.file_hash.clone());
         }
     }
+
     log::warn!("File not found");
     return None;
 }
@@ -535,10 +537,16 @@ pub fn add_outgoing_message(socket_addr: SocketAddr, wrapped_message: pb::Wrappe
     outgoing_messages.push((socket_addr, wrapped_message));
 }
 
-pub fn approve_transfer(socket_addr: SocketAddr, file_direction: FileDirection, file_hash: String) {
+pub fn approve_transfer(
+    socket_addr: SocketAddr,
+    file_direction: FileDirection,
+    file_name: String,
+    file_hash: String,
+) {
     let approval = TransferApproval {
         socket_addr,
         file_direction,
+        file_name,
         file_hash,
     };
     {
@@ -551,10 +559,16 @@ pub fn approve_transfer(socket_addr: SocketAddr, file_direction: FileDirection, 
     }
 }
 
-pub fn reject_transfer(socket_addr: SocketAddr, file_direction: FileDirection, file_hash: String) {
+pub fn reject_transfer(
+    socket_addr: SocketAddr,
+    file_direction: FileDirection,
+    file_name: String,
+    file_hash: String,
+) {
     let approval = TransferApproval {
         socket_addr,
         file_direction,
+        file_name,
         file_hash,
     };
     {
@@ -570,11 +584,13 @@ pub fn reject_transfer(socket_addr: SocketAddr, file_direction: FileDirection, f
 pub fn request_transfer_approval(
     socket_addr: SocketAddr,
     file_direction: FileDirection,
+    file_name: String,
     file_hash: String,
 ) -> bool {
     let approval = TransferApproval {
         file_direction,
         socket_addr,
+        file_name,
         file_hash,
     };
     {
@@ -602,11 +618,13 @@ pub fn request_transfer_approval(
 pub fn get_transfer_approval(
     socket_addr: SocketAddr,
     file_direction: FileDirection,
+    file_name: String,
     file_hash: String,
 ) -> bool {
     let approval = TransferApproval {
         file_direction,
         socket_addr,
+        file_name,
         file_hash,
     };
     {
@@ -617,4 +635,14 @@ pub fn get_transfer_approval(
         }
     }
     return false;
+}
+
+pub fn get_pending_hash_from_name(file_name: &str) -> Option<String> {
+    let unapproved_transfers = UNAPPROVED_TRANSFERS.read().unwrap();
+    for transfer in unapproved_transfers.iter() {
+        if transfer.file_name == file_name {
+            return Some(transfer.file_hash.clone());
+        }
+    }
+    None
 }

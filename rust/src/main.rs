@@ -119,7 +119,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 } else {
                     state::print_clients();
-                    println!("Usage: connect 192.168.0.1:5200");
+                    println!("\nUsage: connect 192.168.0.1:5200");
                 }
             }
             Some("listfiles") => {
@@ -181,7 +181,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 } else {
                     state::print_clients();
-                    println!("Usage: connect 127.0.0.1:8080");
+                    println!("\nUsage: upload 127.0.0.1:8080");
                 }
             }
             Some("download") => {
@@ -210,6 +210,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 } else {
+                    state::print_clients();
                     println!("Usage: download 127.0.0.1:8080 file_name");
                 }
             }
@@ -227,12 +228,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 } else {
                     state::print_clients();
-                    println!("Usage: contact 127.0.0.1:8080");
+                    println!("\nUsage: contact 127.0.0.1:8080");
                 }
             }
             Some("approve") => {
                 if parts.len() >= 4 {
                     let socket_addr = SocketAddr::from_str(parts[1]).unwrap();
+
                     let file_direction = match parts[2] {
                         "upload" => state::FileDirection::UPLOAD,
                         "download" => state::FileDirection::DOWNLOAD,
@@ -241,15 +243,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             continue;
                         }
                     };
+
                     let file_name = parts[3].to_string();
-                    let file_hash = match state::file_name_to_hash(&file_name) {
-                        Some(file_hash) => file_hash,
+
+                    let get_hash_function = match file_direction {
+                        state::FileDirection::UPLOAD => state::get_pending_hash_from_name,
+                        state::FileDirection::DOWNLOAD => state::file_name_to_hash,
+                    };
+                    let file_hash: String = match get_hash_function(&file_name) {
+                        Some(hash) => hash,
                         None => {
-                            eprintln!("File not found");
+                            log::error!(
+                                "File '{}' not found for direction: {:?}",
+                                file_name,
+                                file_direction
+                            );
                             continue;
                         }
                     };
-                    state::approve_transfer(socket_addr, file_direction, file_hash);
+
+                    state::approve_transfer(socket_addr, file_direction, file_name, file_hash);
                     println!("Approved transfer");
                 } else {
                     println!("Usage: approve <socket_addr> <upload|download> <file_hash>");
@@ -267,14 +280,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     };
                     let file_name = parts[3].to_string();
-                    let file_hash = match state::file_name_to_hash(&file_name) {
-                        Some(file_hash) => file_hash,
+
+                    let get_hash_function = match file_direction {
+                        state::FileDirection::UPLOAD => state::get_pending_hash_from_name,
+                        state::FileDirection::DOWNLOAD => state::file_name_to_hash,
+                    };
+                    let file_hash: String = match get_hash_function(&file_name) {
+                        Some(hash) => hash,
                         None => {
-                            eprintln!("File not found");
+                            log::error!(
+                                "File '{}' not found for direction: {:?}",
+                                file_name,
+                                file_direction
+                            );
                             continue;
                         }
                     };
-                    state::reject_transfer(socket_addr, file_direction, file_hash);
+
+                    state::reject_transfer(socket_addr, file_direction, file_name, file_hash);
                     println!("Rejected transfer");
                 } else {
                     println!("Usage: reject <socket_addr> <upload|download> <file_hash>");

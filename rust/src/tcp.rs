@@ -62,6 +62,7 @@ fn handle_client(mut stream: TcpStream) {
     stream.set_nonblocking(true).unwrap();
 
     let socket_addr = stream.peer_addr().expect("Failed to get client address");
+
     state::increment_client_connections(socket_addr);
 
     println!("\nClient connected: {}", socket_addr);

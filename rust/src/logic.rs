@@ -159,13 +159,14 @@ pub fn handle_message(
             if !state::request_transfer_approval(
                 socket_addr,
                 FileDirection::DOWNLOAD,
+                file_name.clone(),
                 file_hash.clone(),
             ) {
                 log::info!(
                     "[{}]: file approval not found for download {} {}",
                     socket_addr,
                     file_name,
-                    file_hash
+                    file_hash,
                 );
                 println!(
                     "[{}]: Incoming request to download {}, type `approve {} download {}`",
@@ -181,6 +182,7 @@ pub fn handle_message(
                     if state::get_transfer_approval(
                         socket_addr,
                         FileDirection::DOWNLOAD,
+                        file_name.clone(),
                         file_hash.clone(),
                     ) {
                         approved = true;
@@ -300,6 +302,7 @@ pub fn handle_message(
             if !state::request_transfer_approval(
                 socket_addr,
                 FileDirection::UPLOAD,
+                file_name.clone(),
                 file_hash.clone(),
             ) {
                 log::info!(
@@ -322,6 +325,7 @@ pub fn handle_message(
                     if state::get_transfer_approval(
                         socket_addr,
                         FileDirection::UPLOAD,
+                        file_name.clone(),
                         file_hash.clone(),
                     ) {
                         approved = true;
