@@ -249,25 +249,22 @@ pub fn hash_file(file_data: &[u8]) -> String {
     hex::encode(hasher.finalize())
 }
 
-pub fn import_file(path: &Path) -> io::Result<String> {
+pub fn import_file(path: &Path) -> io::Result<File> {
     let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
     let file_data = fs::read(path)?;
-
     let file_hash = hash_file(&file_data);
 
+    let file = File {
+        file_name: file_name,
+        file_hash: file_hash.clone(),
+        file_data: Some(file_data),
+    };
     {
         let mut file_system = FILE_SYSTEM.write().unwrap();
-        file_system.files.insert(
-            file_hash.clone(),
-            File {
-                file_name: file_name,
-                file_hash: file_hash.clone(),
-                file_data: Some(file_data),
-            },
-        );
+        file_system.files.insert(file_hash.clone(), file.clone());
     }
 
-    Ok(file_hash)
+    Ok(file)
 }
 
 pub fn export_file(file_hash: &str, path: &Path) -> io::Result<String> {
@@ -366,14 +363,19 @@ pub fn print_client_file_list(socket_addr: SocketAddr) {
     let client_data_map = CLIENT_DATA.read().unwrap();
     let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
 
+    println!("Files Available: ");
     if client_data.file_map.is_none() {
         println!("No file list received from {}", socket_addr);
         return;
     }
 
     let file_map = client_data.file_map.as_ref().unwrap();
-    for (file_name, file) in file_map {
-        println!("{} {}", file_name, file.file_hash);
+    if file_map.len() == 0 {
+        println!("N/A");
+    } else {
+        for (file_name, file) in file_map {
+            println!("{} {}", file_name, file.file_hash);
+        }
     }
 }
 
@@ -422,6 +424,13 @@ pub fn print_clients() {
             client_data.aes_shared.is_some(),
         );
     }
+}
+
+pub fn is_client_connected(socket_addr: SocketAddr) -> bool {
+    let client_data_map = CLIENT_DATA.read().unwrap();
+    let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
+
+    client_data.connections >= 1
 }
 
 pub fn get_client_list() -> Vec<SocketAddr> {

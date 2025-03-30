@@ -5,6 +5,7 @@ mod mdns;
 mod state;
 mod tcp;
 
+use colored::*;
 use num_traits::cast::ToPrimitive;
 use rsa::traits::PublicKeyParts;
 use rustyline::history::DefaultHistory;
@@ -74,177 +75,236 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match parts.get(0).map(|s| s.to_lowercase()).as_deref() {
             Some("help") => {
                 println!("Available commands:");
-                println!("  help - Show this help message");
+                println!("  {} - Show this help message", "help".yellow().bold());
+                println!(
+                    "  {} - Connect to a peer",
+                    "connect <address>".yellow().bold()
+                );
+                println!(
+                    "  {} - List files from a peer",
+                    "listfiles <address>".yellow().bold()
+                );
+                println!(
+                    "  {} - Upload a file to a peer",
+                    "upload <address> <file_name>".yellow().bold()
+                );
+                println!(
+                    "  {} - Download a file from a peer",
+                    "download <address> <file_name>".yellow().bold()
+                );
+                println!(
+                    "  {} - Shows available peers or information about a specific peer",
+                    "contact <address>".yellow().bold()
+                );
+                println!(
+                    "  {} - Approve a transfer",
+                    "approve <address> <upload|download> <file_name>"
+                        .yellow()
+                        .bold()
+                );
+                println!(
+                    "  {} - Reject a transfer",
+                    "reject <address> <upload|download> <file_name>"
+                        .yellow()
+                        .bold()
+                );
+                println!("  {} - List local files", "ls".yellow().bold());
+                println!("  {} - Import a file", "import <file_path>".yellow().bold());
+                println!(
+                    "  {} - Export a file",
+                    "export <file_name> <file_path>".yellow().bold()
+                );
+                println!("  {} - Exit the program", "exit".yellow().bold());
             }
-            Some("connect") => {
-                if parts.len() >= 2 {
-                    let socket_addr: Result<SocketAddr, _> = parts[1].parse();
-                    match socket_addr {
-                        Ok(socket_addr) => {
-                            tcp::connect(socket_addr);
-                            println!("Connected to {} successfully", socket_addr);
-
-                            // Send Key Introduction
-                            let rsa_public_key = state::get_rsa_key();
-                            let dh_public_key = state::get_client_dh_public(socket_addr);
-                            let wrapped_message = pb::WrappedMessage {
-                                payload: Some(pb::wrapped_message::Payload::Introduction(
-                                    pb::Introduction {
-                                        rsa_public_key: {
-                                            Some(pb::RsaPublicKey {
-                                                e: rsa_public_key.e().to_u32().unwrap(),
-                                                n: rsa_public_key.n().to_bytes_be(),
-                                            })
-                                        },
-                                        diffe_hellman: Some(pb::DiffeHellman {
-                                            dh_public_key: dh_public_key.to_bytes().to_vec(),
-                                        }),
-                                    },
-                                )),
-                            };
-                            state::add_outgoing_message(socket_addr, wrapped_message);
-
-                            // Send FileListRequest
-                            let wrapped_message = pb::WrappedMessage {
-                                payload: Some(pb::wrapped_message::Payload::FileListRequest(
-                                    pb::FileListRequest {},
-                                )),
-                            };
-                            state::add_outgoing_message(socket_addr, wrapped_message);
-                        }
+            Some("connect") => match parts.get(1..2) {
+                Some([socket_addr_str]) => {
+                    let socket_addr = match SocketAddr::from_str(socket_addr_str) {
+                        Ok(addr) => addr,
                         Err(e) => {
-                            eprintln!("Invalid address: {:?}: {}", parts, e);
-                            continue;
-                        }
-                    }
-                } else {
-                    state::print_clients();
-                    println!("\nUsage: connect 192.168.0.1:5200");
-                }
-            }
-            Some("listfiles") => {
-                if parts.len() >= 2 {
-                    let socket_addr: Result<SocketAddr, _> = parts[1].parse();
-                    match socket_addr {
-                        Ok(socket_addr) => {
-                            // Send FileListRequest
-                            let wrapped_message = pb::WrappedMessage {
-                                payload: Some(pb::wrapped_message::Payload::FileListRequest(
-                                    pb::FileListRequest {},
-                                )),
-                            };
-                            state::add_outgoing_message(socket_addr, wrapped_message);
-
-                            state::print_client_file_list(socket_addr);
-                        }
-                        Err(e) => {
-                            eprintln!("Invalid address: {:?}: {}", parts, e);
-                            continue;
-                        }
-                    }
-                } else {
-                    println!("Usage: listfiles 127.0.0.1:8080");
-                }
-            }
-            Some("upload") => {
-                if parts.len() >= 2 {
-                    let socket_addr: Result<SocketAddr, _> = parts[1].parse();
-                    match socket_addr {
-                        Ok(addr) => {
-                            if parts.len() >= 3 {
-                                let file_name = parts[2].to_string();
-                                let file_hash = match state::file_name_to_hash(&file_name) {
-                                    Some(file_hash) => file_hash,
-                                    None => {
-                                        eprintln!("File not found");
-                                        continue;
-                                    }
-                                };
-                                let file = state::get_file_by_hash(&file_hash);
-                                let wrapped_message = pb::WrappedMessage {
-                                    payload: Some(pb::wrapped_message::Payload::FileUploadRequest(
-                                        pb::FileUploadRequest {
-                                            file_name: file.file_name,
-                                            file_data: file.file_data.unwrap(),
-                                        },
-                                    )),
-                                };
-                                state::add_outgoing_message(addr, wrapped_message);
-                            } else {
-                                println!("Usage: upload 127.0.0.1:8080 file_name");
-                            }
-                        }
-                        Err(e) => {
-                            eprintln!("Invalid address: {:?}: {}", parts, e);
-                            continue;
-                        }
-                    }
-                } else {
-                    state::print_clients();
-                    println!("\nUsage: upload 127.0.0.1:8080");
-                }
-            }
-            Some("download") => {
-                if parts.len() >= 2 {
-                    match parts[1].parse() {
-                        Ok(socket_addr) => {
-                            if parts.len() >= 3 {
-                                let file_name = parts[2].to_string();
-
-                                let wrapped_message = pb::WrappedMessage {
-                                    payload: Some(
-                                        pb::wrapped_message::Payload::FileDownloadRequest(
-                                            pb::FileDownloadRequest { file_name },
-                                        ),
-                                    ),
-                                };
-                                state::add_outgoing_message(socket_addr, wrapped_message);
-                            } else {
-                                state::print_client_file_list(socket_addr);
-                                println!("Usage: download 127.0.0.1:8080 file_name");
-                            }
-                        }
-                        Err(e) => {
-                            eprintln!("Invalid address: {:?}: {}", parts, e);
-                            continue;
-                        }
-                    }
-                } else {
-                    state::print_clients();
-                    println!("Usage: download 127.0.0.1:8080 file_name");
-                }
-            }
-            Some("contact") => {
-                if parts.len() >= 2 {
-                    let socket_addr: Result<SocketAddr, _> = parts[1].parse();
-                    match socket_addr {
-                        Ok(socket_addr) => {
-                            state::print_client_file_list(socket_addr);
-                        }
-                        Err(e) => {
-                            eprintln!("Invalid address: {:?}: {}", parts, e);
-                            continue;
-                        }
-                    }
-                } else {
-                    state::print_clients();
-                    println!("\nUsage: contact 127.0.0.1:8080");
-                }
-            }
-            Some("approve") => {
-                if parts.len() >= 4 {
-                    let socket_addr = SocketAddr::from_str(parts[1]).unwrap();
-
-                    let file_direction = match parts[2] {
-                        "upload" => state::FileDirection::UPLOAD,
-                        "download" => state::FileDirection::DOWNLOAD,
-                        _ => {
-                            println!("Invalid file direction. Must be 'upload' or 'download'");
+                            eprintln!("Invalid address '{}': {}", socket_addr_str, e);
                             continue;
                         }
                     };
 
-                    let file_name = parts[3].to_string();
+                    // Open TCP connection
+                    tcp::connect(socket_addr);
+                    println!("Connected to {} successfully", socket_addr);
+
+                    // Send Key Introduction
+                    let rsa_public_key = state::get_rsa_key();
+                    let dh_public_key = state::get_client_dh_public(socket_addr);
+                    let wrapped_message = pb::WrappedMessage {
+                        payload: Some(pb::wrapped_message::Payload::Introduction(
+                            pb::Introduction {
+                                rsa_public_key: {
+                                    Some(pb::RsaPublicKey {
+                                        e: rsa_public_key.e().to_u32().unwrap(),
+                                        n: rsa_public_key.n().to_bytes_be(),
+                                    })
+                                },
+                                diffe_hellman: Some(pb::DiffeHellman {
+                                    dh_public_key: dh_public_key.to_bytes().to_vec(),
+                                }),
+                            },
+                        )),
+                    };
+                    state::add_outgoing_message(socket_addr, wrapped_message);
+                    println!("Sent Hello to {}", socket_addr);
+
+                    // Send FileListRequest
+                    let wrapped_message = pb::WrappedMessage {
+                        payload: Some(pb::wrapped_message::Payload::FileListRequest(
+                            pb::FileListRequest {},
+                        )),
+                    };
+                    state::add_outgoing_message(socket_addr, wrapped_message);
+                    println!("Sent FileList Request to {}", socket_addr);
+                }
+                _ => {
+                    println!("Usage: {}", "connect 256.256.256.256:5200".yellow().bold());
+                }
+            },
+            Some("upload") => match parts.get(1..3) {
+                Some([socket_addr_str, file_name_str]) => {
+                    let socket_addr = match SocketAddr::from_str(socket_addr_str) {
+                        Ok(addr) => addr,
+                        Err(e) => {
+                            eprintln!("Invalid address '{}': {}", socket_addr_str, e);
+                            continue;
+                        }
+                    };
+
+                    let file_name = file_name_str.to_string();
+                    let file_hash = match state::file_name_to_hash(&file_name) {
+                        Some(hash) => hash,
+                        None => {
+                            eprintln!("Local file '{}' not found.", file_name);
+                            state::print_file_list();
+                            continue;
+                        }
+                    };
+
+                    let file = state::get_file_by_hash(&file_hash);
+
+                    let file_data = match file.file_data {
+                        Some(data) => data,
+                        None => {
+                            eprintln!(
+                                "Error: Local file '{}' has no data associated with it.",
+                                file_name
+                            );
+                            continue;
+                        }
+                    };
+
+                    let wrapped_message = pb::WrappedMessage {
+                        payload: Some(pb::wrapped_message::Payload::FileUploadRequest(
+                            pb::FileUploadRequest {
+                                file_name: file.file_name,
+                                file_data,
+                            },
+                        )),
+                    };
+                    state::add_outgoing_message(socket_addr, wrapped_message);
+                    println!(
+                        "Upload request for '{}' sent to {}.",
+                        file_name_str, socket_addr
+                    );
+                }
+                _ => {
+                    println!("Usage: upload 256.256.256.256:5200 file_name");
+                }
+            },
+            Some("download") => match parts.get(1..3) {
+                Some([socket_addr_str, file_name_str]) => {
+                    let socket_addr = match SocketAddr::from_str(socket_addr_str) {
+                        Ok(addr) => addr,
+                        Err(e) => {
+                            eprintln!("Invalid address '{}': {}", socket_addr_str, e);
+                            continue;
+                        }
+                    };
+
+                    let file_name = file_name_str.to_string();
+                    let wrapped_message = pb::WrappedMessage {
+                        payload: Some(pb::wrapped_message::Payload::FileDownloadRequest(
+                            pb::FileDownloadRequest {
+                                file_name: file_name.clone(),
+                            },
+                        )),
+                    };
+                    state::add_outgoing_message(socket_addr, wrapped_message);
+                    println!(
+                        "Download request for '{}' sent to {}.",
+                        file_name, socket_addr
+                    );
+                }
+                _ => {
+                    println!(
+                        "Usage: {}",
+                        "download 256.256.256.256:5200 <file_name>".yellow().bold()
+                    );
+                }
+            },
+            Some("contact") => match parts.get(1..2) {
+                Some([socket_addr_str]) => {
+                    let socket_addr = match SocketAddr::from_str(socket_addr_str) {
+                        Ok(socket_addr) => socket_addr,
+                        Err(e) => {
+                            eprintln!("Error parsing address {}", e);
+                            continue;
+                        }
+                    };
+
+                    if state::is_client_connected(socket_addr) {
+                        println!("Status: Connected");
+                    } else {
+                        println!("Status: Offline");
+                    }
+
+                    let rsa_key = state::get_client_rsa_key(socket_addr);
+                    if rsa_key.is_some() {
+                        println!("RSA Key: Known");
+                    } else {
+                        println!("RSA Key: Unknown")
+                    }
+
+                    let wrapped_message = pb::WrappedMessage {
+                        payload: Some(pb::wrapped_message::Payload::FileListRequest(
+                            pb::FileListRequest {},
+                        )),
+                    };
+                    state::add_outgoing_message(socket_addr, wrapped_message);
+                    state::print_client_file_list(socket_addr); // Won't be updated
+                }
+                _ => {
+                    state::print_clients();
+
+                    println!(
+                        "\nUsage: {}",
+                        "contact 256.256.256.256:5200".yellow().bold()
+                    );
+                }
+            },
+            Some("approve") => match parts.get(1..3) {
+                Some([socket_addr_str, file_direction_str, file_name_str]) => {
+                    let socket_addr = match SocketAddr::from_str(socket_addr_str) {
+                        Ok(socket_addr) => socket_addr,
+                        Err(e) => {
+                            eprintln!("Error parsing address {}", e);
+                            continue;
+                        }
+                    };
+                    let file_direction = match *file_direction_str {
+                        "upload" => state::FileDirection::UPLOAD,
+                        "download" => state::FileDirection::DOWNLOAD,
+                        _ => {
+                            eprintln!("Invalid file direction. Must be 'upload' or 'download'");
+                            continue;
+                        }
+                    };
+
+                    let file_name = file_name_str.to_string();
 
                     let get_hash_function = match file_direction {
                         state::FileDirection::UPLOAD => state::get_pending_hash_from_name,
@@ -253,10 +313,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let file_hash: String = match get_hash_function(&file_name) {
                         Some(hash) => hash,
                         None => {
-                            log::error!(
+                            eprintln!(
                                 "File '{}' not found for direction: {:?}",
-                                file_name,
-                                file_direction
+                                file_name, file_direction
                             );
                             continue;
                         }
@@ -264,22 +323,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     state::approve_transfer(socket_addr, file_direction, file_name, file_hash);
                     println!("Approved transfer");
-                } else {
-                    println!("Usage: approve <socket_addr> <upload|download> <file_hash>");
                 }
-            }
-            Some("reject") => {
-                if parts.len() >= 4 {
-                    let socket_addr = SocketAddr::from_str(parts[1]).unwrap();
-                    let file_direction = match parts[2] {
-                        "upload" => state::FileDirection::UPLOAD,
-                        "download" => state::FileDirection::DOWNLOAD,
-                        _ => {
-                            println!("Invalid file direction. Must be 'upload' or 'download'");
+                _ => {
+                    println!(
+                        "Usage: {}",
+                        "approve 256.256.256.256:5200 <upload|download> <file_name>"
+                            .yellow()
+                            .bold()
+                    );
+                }
+            },
+            Some("reject") => match parts.get(1..3) {
+                Some([socket_addr_str, file_direction_str, file_name_str]) => {
+                    let socket_addr = match SocketAddr::from_str(socket_addr_str) {
+                        Ok(socket_addr) => socket_addr,
+                        Err(e) => {
+                            eprintln!("Error parsing address {}", e);
                             continue;
                         }
                     };
-                    let file_name = parts[3].to_string();
+                    let file_direction = match *file_direction_str {
+                        "upload" => state::FileDirection::UPLOAD,
+                        "download" => state::FileDirection::DOWNLOAD,
+                        _ => {
+                            eprintln!("Invalid file direction. Must be 'upload' or 'download'");
+                            continue;
+                        }
+                    };
+
+                    let file_name = file_name_str.to_string();
 
                     let get_hash_function = match file_direction {
                         state::FileDirection::UPLOAD => state::get_pending_hash_from_name,
@@ -288,10 +360,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let file_hash: String = match get_hash_function(&file_name) {
                         Some(hash) => hash,
                         None => {
-                            log::error!(
+                            eprintln!(
                                 "File '{}' not found for direction: {:?}",
-                                file_name,
-                                file_direction
+                                file_name, file_direction
                             );
                             continue;
                         }
@@ -299,25 +370,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     state::reject_transfer(socket_addr, file_direction, file_name, file_hash);
                     println!("Rejected transfer");
-                } else {
-                    println!("Usage: reject <socket_addr> <upload|download> <file_hash>");
                 }
-            }
+                _ => {
+                    println!(
+                        "Usage: {}",
+                        "reject 256.256.256.256:5200 <upload|download> <file_name>"
+                            .yellow()
+                            .bold()
+                    );
+                }
+            },
             Some("ls") => {
                 state::print_file_list();
             }
-            Some("import") => {
-                if parts.len() >= 2 {
-                    let path = std::path::Path::new(parts[1]);
-                    let file_hash = state::import_file(path).unwrap();
-                    println!("Imported file with hash: {}", file_hash);
-                } else {
-                    println!("Usage: import <file_path>");
+            Some("import") => match parts.get(1..2) {
+                Some([path_str]) => {
+                    let path = std::path::Path::new(path_str);
+                    match state::import_file(path) {
+                        Ok(file) => {
+                            println!(
+                                "Imported file with hash: {} {}",
+                                file.file_name, file.file_hash
+                            );
+                        }
+                        Err(e) => {
+                            eprintln!("Error importing file {}", e)
+                        }
+                    }
                 }
-            }
-            Some("export") => {
-                if parts.len() >= 3 {
-                    let file_name = parts[1].to_string();
+                _ => {
+                    println!("Usage: {}", "import <file_path>".yellow().bold());
+                }
+            },
+            Some("export") => match parts.get(1..3) {
+                Some([file_name, path_str]) => {
                     let file_hash = match state::file_name_to_hash(&file_name) {
                         Some(file_hash) => file_hash,
                         None => {
@@ -325,15 +411,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             continue;
                         }
                     };
-                    let path = std::path::Path::new(parts[2]);
-
-                    let file_path =
-                        state::export_file(&file_hash, path).expect("error exporting file");
-                    println!("Exported file to: {}", file_path);
-                } else {
-                    println!("Usage: export <file_name> <file_path>");
+                    let path = std::path::Path::new(path_str);
+                    match state::export_file(&file_hash, path) {
+                        Ok(exported_path) => {
+                            println!("Exported file to: {}", exported_path);
+                        }
+                        Err(e) => {
+                            eprintln!("Error exporting file '{}': {}", file_name, e);
+                        }
+                    }
                 }
-            }
+                _ => {
+                    println!(
+                        "Usage: {}",
+                        "export <file_name> <file_path>".yellow().bold()
+                    );
+                }
+            },
             Some("exit") => {
                 break;
             }
