@@ -3,7 +3,7 @@ use gethostname::gethostname;
 use local_ip_address::local_ip;
 use log;
 use mdns_sd::{Receiver, Result, ServiceDaemon, ServiceEvent, ServiceInfo};
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 pub struct Mdns {
     _mdns: ServiceDaemon,
@@ -45,15 +45,36 @@ impl Mdns {
     pub fn run(&self) {
         let receiver = self.mdns_receiver.to_owned();
 
+        let local_ip = local_ip().unwrap();
+
         for event in receiver {
             match event {
                 ServiceEvent::ServiceResolved(info) => {
-                    log::debug!("Broadcasted info: {:?}", info);
+                    log::info!("Received info: {:?}", info);
                     let port = info.get_port();
                     for ip in info.get_addresses() {
-                        let socket_addr = SocketAddr::new(*ip, port);
-                        // let hostname: hostname
-                        state::init_client_data(socket_addr);
+                        log::info!("Found IP Address: {}", ip);
+
+                        if *ip == local_ip {
+                            log::info!("Skipping own IP address: {}", ip);
+                            continue;
+                        }
+
+                        match ip {
+                            IpAddr::V4(ipv4) => {
+                                if ipv4.octets()[0] == 192 {
+                                    log::info!("Found good remote IP: {}:{}", ipv4, port);
+                                    let socket_addr = SocketAddr::new(IpAddr::V4(*ipv4), port);
+                                    state::init_client_data(socket_addr);
+                                } else {
+                                    log::debug!("Skipping non 192 address: {}", ipv4);
+                                }
+                            }
+                            IpAddr::V6(ipv6) => {
+                                log::info!("Skipping IPv6 address: {}", ipv6);
+                                continue;
+                            }
+                        }
                     }
                 }
                 other_event => {

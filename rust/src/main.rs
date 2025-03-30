@@ -153,7 +153,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Ok(addr) => {
                             if parts.len() >= 3 {
                                 let file_name = parts[2].to_string();
-                                let file_hash = state::file_name_to_hash(&file_name);
+                                let file_hash = match state::file_name_to_hash(&file_name) {
+                                    Some(file_hash) => file_hash,
+                                    None => {
+                                        eprintln!("File not found");
+                                        continue;
+                                    }
+                                };
                                 let file = state::get_file_by_hash(&file_hash);
                                 let wrapped_message = pb::WrappedMessage {
                                     payload: Some(pb::wrapped_message::Payload::FileUploadRequest(
@@ -236,7 +242,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     };
                     let file_name = parts[3].to_string();
-                    let file_hash = state::file_name_to_hash(&file_name);
+                    let file_hash = match state::file_name_to_hash(&file_name) {
+                        Some(file_hash) => file_hash,
+                        None => {
+                            eprintln!("File not found");
+                            continue;
+                        }
+                    };
                     state::approve_transfer(socket_addr, file_direction, file_hash);
                     println!("Approved transfer");
                 } else {
@@ -255,7 +267,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     };
                     let file_name = parts[3].to_string();
-                    let file_hash = state::file_name_to_hash(&file_name);
+                    let file_hash = match state::file_name_to_hash(&file_name) {
+                        Some(file_hash) => file_hash,
+                        None => {
+                            eprintln!("File not found");
+                            continue;
+                        }
+                    };
                     state::reject_transfer(socket_addr, file_direction, file_hash);
                     println!("Rejected transfer");
                 } else {
@@ -277,7 +295,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some("export") => {
                 if parts.len() >= 3 {
                     let file_name = parts[1].to_string();
-                    let file_hash = state::file_name_to_hash(&file_name);
+                    let file_hash = match state::file_name_to_hash(&file_name) {
+                        Some(file_hash) => file_hash,
+                        None => {
+                            eprintln!("File not found");
+                            continue;
+                        }
+                    };
                     let path = std::path::Path::new(parts[2]);
 
                     let file_path =

@@ -314,14 +314,15 @@ pub fn file_hash_to_name(file_hash: &str) -> String {
     file_system.files.get(file_hash).unwrap().file_name.clone()
 }
 
-pub fn file_name_to_hash(file_name: &str) -> String {
+pub fn file_name_to_hash(file_name: &str) -> Option<String> {
     let file_system = FILE_SYSTEM.read().unwrap();
     for file in file_system.files.values() {
         if file.file_name == file_name {
-            return file.file_hash.clone();
+            return Some(file.file_hash.clone());
         }
     }
-    panic!("File not found")
+    log::warn!("File not found");
+    return None;
 }
 
 pub fn set_file(file: File) {

@@ -138,7 +138,16 @@ pub fn handle_message(
             log::info!("[{}]: received file download request", socket_addr);
 
             let file_name = file_download_request.file_name;
-            let file_hash = state::file_name_to_hash(&file_name);
+            let file_hash = match state::file_name_to_hash(&file_name) {
+                Some(file_hash) => file_hash,
+                None => {
+                    return Some(pb::WrappedMessage {
+                        payload: Some(pb::wrapped_message::Payload::Error(pb::Error {
+                            message: "File not found".to_string(),
+                        })),
+                    });
+                }
+            };
 
             log::info!(
                 "[{}]: extracted file name and associated hash {} {}",
@@ -157,6 +166,10 @@ pub fn handle_message(
                     socket_addr,
                     file_name,
                     file_hash
+                );
+                println!(
+                    "[{}]: Incoming request to download {}, type `approve {} download {}`",
+                    socket_addr, file_name, socket_addr, file_name
                 );
 
                 let start_time = Instant::now();
@@ -294,6 +307,10 @@ pub fn handle_message(
                     socket_addr,
                     file_name,
                     file_hash
+                );
+                println!(
+                    "[{}]: Incoming request to upload {}, type `approve {} upload {}`",
+                    socket_addr, file_name, socket_addr, file_name
                 );
 
                 let start_time = Instant::now();
