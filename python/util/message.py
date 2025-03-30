@@ -47,10 +47,10 @@ def consume_message(local_rsa_priv_key, peer_rsa_pub_key, aes_key, serialized_ms
     plain_payload = message_pb2.WrappedMessage()
     plain_payload.ParseFromString(plain_request)
 
+    response = None
     if plain_payload.HasField("file_list_request"):
         print('file_list_request received')
-        file_list = create_file_list(local_rsa_priv_key, aes_key)
-        return file_list
+        response = create_file_list(local_rsa_priv_key, aes_key)
     elif plain_payload.HasField("file_list"):
         print('file_list received')
         print(plain_payload.file_list)
@@ -64,6 +64,7 @@ def consume_message(local_rsa_priv_key, peer_rsa_pub_key, aes_key, serialized_ms
         print('Error message received')
     else:
         print('unknown request type')
+    return response
 
 
 def build_and_serialize_signed_msg(rsa_priv_key, aes_key, wrapped_msg):

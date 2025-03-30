@@ -42,9 +42,9 @@ def browse():
             else:
                 num_servers = len(servers)
 
-                for i, p in enumerate(servers):
-                    print(f"{i}: {p[0][:-1 * (len(TYPE) + 1)]}")
                 while choice not in range(len(servers)):
+                    for i, p in enumerate(servers):
+                        print(f"{i}: {p[0][:-1 * (len(TYPE) + 1)]}")
                     try:
                         choice = int(input("Select a peer by entering the corresponding number. \n"))
                         if choice not in range(len(servers)):

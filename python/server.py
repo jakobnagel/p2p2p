@@ -49,12 +49,12 @@ def main():
                 print(f"Connected by {addr}")
                 peer_rsa_pubkey, shared_dh_key = server_introduce(conn, privkey, pubkey)
 
-                print("getting msg")
                 data = conn.recv(1024)
-                print("consuming msg")
                 reply = consume_message(privkey, peer_rsa_pubkey, shared_dh_key, data)
-                print("sending msg")
-                conn.sendall(reply)
+                if reply:
+                    conn.sendall(reply)
+                else:
+                    conn.close()
 
                 # while True:
                 #     data = conn.recv(1024)
