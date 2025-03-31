@@ -10,9 +10,9 @@ use num_traits::cast::ToPrimitive;
 use rsa::traits::PublicKeyParts;
 use rustyline::history::DefaultHistory;
 use rustyline::Editor;
-use state::get_rsa_key;
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::sync::atomic::Ordering;
 use std::thread;
 
 pub mod pb {
@@ -47,13 +47,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     state::init_app_data();
 
     // mDNS
-    let _mdns_handle = thread::spawn(move || {
+    let mdns_handle = thread::spawn(move || {
         let mdns = mdns::Mdns::new().unwrap();
         mdns.run();
     });
 
     // TCP
-    let _tcp_handle = thread::spawn(move || {
+    let tcp_handle = thread::spawn(move || {
         let tcp = tcp::TcpServer::new().unwrap();
         tcp.run();
     });
@@ -440,10 +440,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
+    state::SHUTDOWN.store(true, Ordering::SeqCst);
+    log::info!("Sending shutdown signal");
 
     println!("Saving RSA private key to appdata.bin");
     println!("Saving files to filesystem.bin");
     state::save_app_data_to_disk(&password)?;
     rl.save_history("history.txt").unwrap();
+
+    mdns_handle.join().unwrap();
+    log::info!("mDNS stopped");
+
+    tcp_handle.join().unwrap();
+    log::info!("tcp server stopped");
+
+    let mut tcp_handles = state::TCP_HANDLES.lock().unwrap();
+    for handle in tcp_handles.drain(..) {
+        handle.join().unwrap();
+    }
+    log::info!("tcp connections stopped");
+
     Ok(())
 }

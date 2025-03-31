@@ -8,28 +8,31 @@ use rsa::signature::{SignerMut, Verifier};
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::error::Error;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::net::SocketAddr;
 use std::path::Path;
-use std::sync::RwLock;
+use std::sync::atomic::AtomicBool;
+use std::sync::{Mutex, RwLock};
+use std::thread::JoinHandle;
 use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
 
 use crate::pb;
 
-type Result<T> = std::result::Result<T, Box<dyn Error + Sync + Send>>;
-
 lazy_static! {
-    // static ref MY_DATA: RwLock<HashMap<String, i32>> = RwLock::new(HashMap::new());
-    static ref APP_DATA: RwLock<AppData> = RwLock::new(AppData { private_key: None});
+    static ref APP_DATA: RwLock<AppData> = RwLock::new(AppData { private_key: None });
     static ref FILE_SYSTEM: RwLock<FileSystem> = RwLock::new(FileSystem {
         files: HashMap::new()
     });
-    static ref CLIENT_DATA: RwLock<HashMap<SocketAddr, RwLock<ClientData>>> = RwLock::new(HashMap::new());
-    static ref OUTGOING_MESSAGES: RwLock<Vec<(SocketAddr, pb::WrappedMessage)>> = RwLock::new(Vec::new());
+    static ref CLIENT_DATA: RwLock<HashMap<SocketAddr, RwLock<ClientData>>> =
+        RwLock::new(HashMap::new());
+    static ref OUTGOING_MESSAGES: RwLock<Vec<(SocketAddr, pb::WrappedMessage)>> =
+        RwLock::new(Vec::new());
     static ref APPROVED_TRANSFERS: RwLock<HashSet<TransferApproval>> = RwLock::new(HashSet::new());
-    static ref UNAPPROVED_TRANSFERS: RwLock<HashSet<TransferApproval>> = RwLock::new(HashSet::new());
+    static ref UNAPPROVED_TRANSFERS: RwLock<HashSet<TransferApproval>> =
+        RwLock::new(HashSet::new());
+    pub static ref TCP_HANDLES: Mutex<Vec<JoinHandle<()>>> = Mutex::new(Vec::new());
+    pub static ref SHUTDOWN: AtomicBool = AtomicBool::new(false);
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

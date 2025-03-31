@@ -5,7 +5,9 @@ use crate::pb;
 use crate::state;
 use std::io::{self, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::sync::atomic::Ordering;
 use std::thread;
+use std::time::Duration;
 
 pub struct TcpServer {
     listener: TcpListener,
@@ -14,18 +16,29 @@ pub struct TcpServer {
 impl TcpServer {
     pub fn new() -> std::io::Result<Self> {
         let listener = TcpListener::bind("0.0.0.0:5200")?;
+        listener.set_nonblocking(true)?;
         Ok(TcpServer { listener })
     }
 
     pub fn run(&self) {
         // Incoming connections
-        for stream in self.listener.incoming() {
-            match stream {
-                Ok(stream) => {
+        loop {
+            if state::SHUTDOWN.load(Ordering::SeqCst) {
+                log::info!("TCP loop shutting down.");
+                break;
+            }
+            match self.listener.accept() {
+                Ok((stream, _addr)) => {
                     state::init_client_data(stream.peer_addr().unwrap());
-                    thread::spawn(move || {
+                    let handle = thread::spawn(move || {
                         handle_client(stream);
                     });
+                    let mut tcp_handles = state::TCP_HANDLES.lock().unwrap();
+                    tcp_handles.push(handle);
+                }
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                    thread::sleep(Duration::from_millis(100));
+                    continue;
                 }
                 Err(e) => {
                     eprintln!("Connection failed: {}", e);
@@ -48,9 +61,11 @@ pub fn connect(socket_addr: SocketAddr) {
                 socket_addr
             );
 
-            thread::spawn(move || {
+            let handle = thread::spawn(move || {
                 handle_client(stream);
             });
+            let mut tcp_handles = state::TCP_HANDLES.lock().unwrap();
+            tcp_handles.push(handle);
         }
         Err(e) => {
             eprintln!("Connection failed: {}", e);
@@ -72,6 +87,10 @@ fn handle_client(mut stream: TcpStream) {
 
     let mut buffer = [0; 1024 * 1024];
     loop {
+        if state::SHUTDOWN.load(Ordering::SeqCst) {
+            return;
+        }
+
         use_client_encryption = state::get_client_encryption_modes(socket_addr);
 
         let mut wrapped_response = state::get_outgoing_message(socket_addr);
@@ -120,7 +139,7 @@ fn handle_client(mut stream: TcpStream) {
                 Err(e) => match e.kind() {
                     io::ErrorKind::WouldBlock => {
                         log::debug!("No data available (WouldBlock)");
-                        thread::sleep(std::time::Duration::from_millis(10));
+                        thread::sleep(std::time::Duration::from_millis(100));
                     }
                     io::ErrorKind::Interrupted => {
                         log::debug!("Read interrupted");
