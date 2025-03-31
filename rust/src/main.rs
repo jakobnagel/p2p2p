@@ -249,7 +249,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     println!(
                                         "{} is offline, try {} or {:?}",
                                         socket_addr,
-                                        format!("approve {} download {}", clients[0], file_name)
+                                        format!("download {} {}", clients[0], file_name)
                                             .yellow()
                                             .bold(),
                                         clients
