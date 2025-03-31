@@ -25,6 +25,7 @@ pbkdf2 = "0.12.2"
 rpassword = "7.3.1"
 colored = "3.0.0"
 flume = "0.11.1"
+ctrlc = "3.4.5"
 
 [build-dependencies]
 prost-build = "0.13.5"
