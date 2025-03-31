@@ -227,6 +227,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             };
 
                             let file_name = file_name_str.to_string();
+
+                            if !state::is_client_connected(socket_addr) {
+                                let file_hash = match state::remote_file_name_to_hash(
+                                    socket_addr,
+                                    &file_name,
+                                ) {
+                                    Some(file_hash) => file_hash,
+                                    _ => {
+                                        eprintln!(
+                                            "Can't find file {} in {}",
+                                            socket_addr, file_name_str
+                                        );
+                                        continue;
+                                    }
+                                };
+
+                                let clients = state::find_clients_with_hash(&file_hash);
+
+                                if clients.len() >= 1 {
+                                    println!(
+                                        "{} is offline, try {} or {:?}",
+                                        socket_addr,
+                                        format!("approve {} download {}", clients[0], file_name)
+                                            .yellow()
+                                            .bold(),
+                                        clients
+                                    );
+                                } else {
+                                    println!(
+                                        "{} is offline, no other clients with the file found",
+                                        socket_addr
+                                    );
+                                }
+                                continue;
+                            }
+
                             let wrapped_message = pb::WrappedMessage {
                                 payload: Some(pb::wrapped_message::Payload::FileDownloadRequest(
                                     pb::FileDownloadRequest {

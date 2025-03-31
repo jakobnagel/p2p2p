@@ -327,6 +327,24 @@ pub fn file_name_to_hash(file_name: &str) -> Option<String> {
     return None;
 }
 
+pub fn remote_file_name_to_hash(socket_addr: SocketAddr, file_name: &str) -> Option<String> {
+    let client_data_map = CLIENT_DATA.read().unwrap();
+    let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
+    if client_data.file_map.is_none() {
+        return None;
+    }
+
+    let file_map = client_data.file_map.as_ref().unwrap();
+    for file in file_map.values() {
+        if file.file_name == file_name {
+            return Some(file.file_hash.clone());
+        }
+    }
+
+    log::warn!("File not found");
+    return None;
+}
+
 pub fn set_file(file: File) {
     let mut file_system = FILE_SYSTEM.write().unwrap();
     file_system.files.insert(file.file_hash.clone(), file);
@@ -439,6 +457,20 @@ pub fn is_client_connected(socket_addr: SocketAddr) -> bool {
 pub fn get_client_list() -> Vec<SocketAddr> {
     let client_data_map = CLIENT_DATA.read().unwrap();
     client_data_map.keys().cloned().collect()
+}
+
+pub fn find_clients_with_hash(file_hash: &str) -> Vec<SocketAddr> {
+    let mut clients_with_hash = Vec::new();
+    let client_data_map = CLIENT_DATA.read().unwrap();
+    for (socket_addr, client_data) in client_data_map.iter() {
+        let client_data = client_data.read().unwrap();
+        if let Some(file_map) = &client_data.file_map {
+            if file_map.values().any(|file| file.file_hash == file_hash) {
+                clients_with_hash.push(*socket_addr);
+            }
+        }
+    }
+    clients_with_hash
 }
 
 pub fn get_client_encryption_modes(socket_addr: SocketAddr) -> EncryptionModes {
