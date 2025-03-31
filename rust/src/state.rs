@@ -464,6 +464,9 @@ pub fn find_clients_with_hash(file_hash: &str) -> Vec<SocketAddr> {
     let client_data_map = CLIENT_DATA.read().unwrap();
     for (socket_addr, client_data) in client_data_map.iter() {
         let client_data = client_data.read().unwrap();
+        if client_data.connections == 0 {
+            continue;
+        }
         if let Some(file_map) = &client_data.file_map {
             if file_map.values().any(|file| file.file_hash == file_hash) {
                 clients_with_hash.push(*socket_addr);
