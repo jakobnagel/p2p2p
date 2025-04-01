@@ -77,35 +77,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Some("help") => {
                         println!("Available commands:");
                         println!("  {} - Show this help message", "help".yellow().bold());
+                        println!("  {} - List peers", "search".yellow().bold());
                         println!(
                             "  {} - Connect to a peer",
-                            "connect <address>".yellow().bold()
+                            "connect <address> <nickname>".yellow().bold()
+                        );
+                        println!(
+                            "  {} - Rename a peer",
+                            "rename <old nickname> <new nickname>".yellow().bold()
                         );
                         println!(
                             "  {} - List files from a peer",
-                            "listfiles <address>".yellow().bold()
+                            "listfiles <nickname>".yellow().bold()
                         );
                         println!(
                             "  {} - Upload a file to a peer",
-                            "upload <address> <file_name>".yellow().bold()
+                            "upload <nickname> <file_name>".yellow().bold()
                         );
                         println!(
                             "  {} - Download a file from a peer",
-                            "download <address> <file_name>".yellow().bold()
-                        );
-                        println!(
-                            "  {} - Shows available peers or information about a specific peer",
-                            "contact <address>".yellow().bold()
+                            "download <nickname> <file_name>".yellow().bold()
                         );
                         println!(
                             "  {} - Approve a transfer",
-                            "approve <address> <upload|download> <file_name>"
+                            "approve <nickname> <upload|download> <file_name>"
                                 .yellow()
                                 .bold()
                         );
                         println!(
                             "  {} - Reject a transfer",
-                            "reject <address> <upload|download> <file_name>"
+                            "reject <nickname> <upload|download> <file_name>"
                                 .yellow()
                                 .bold()
                         );
@@ -117,8 +118,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         );
                         println!("  {} - Exit the program", "exit".yellow().bold());
                     }
-                    Some("connect") => match parts.get(1..2) {
-                        Some([socket_addr_str]) => {
+                    Some("search") => {
+                        state::print_clients();
+                    }
+                    Some("connect") => match parts.get(1..3) {
+                        Some([socket_addr_str, nickname_str]) => {
                             let socket_addr = match SocketAddr::from_str(socket_addr_str) {
                                 Ok(addr) => addr,
                                 Err(e) => {
@@ -126,6 +130,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     continue;
                                 }
                             };
+
+                            let nickname = nickname_str.to_string();
+                            state::init_client_data(socket_addr);
+                            if state::set_client_nickname(socket_addr, nickname.clone()).is_err() {
+                                println!("Nickname {} is already used", nickname);
+                            }
 
                             // Open TCP connection
                             tcp::connect(socket_addr);
@@ -162,15 +172,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             println!("Sent FileList Request to {}", socket_addr);
                         }
                         _ => {
-                            println!("Usage: {}", "connect 256.256.256.256:5200".yellow().bold());
+                            println!(
+                                "Usage: {}",
+                                "connect 256.256.256.256:5200 <nickname>".yellow().bold()
+                            );
+                        }
+                    },
+                    Some("rename") => match parts.get(1..3) {
+                        Some([old_nickname_str, new_nickname_str]) => {
+                            let old_nickname = old_nickname_str.to_string();
+                            let new_nickname = new_nickname_str.to_string();
+
+                            if state::change_client_nickname(
+                                old_nickname.clone(),
+                                new_nickname.clone(),
+                            )
+                            .is_err()
+                            {
+                                println!("Failed to rename {} to {}", old_nickname, new_nickname);
+                                continue;
+                            }
+                            println!("Changed nickname of {} to {}", old_nickname, new_nickname);
+                        }
+                        _ => {
+                            println!(
+                                "Usage: {}",
+                                "rename <old nickname> <new nickname>".yellow().bold()
+                            );
                         }
                     },
                     Some("upload") => match parts.get(1..3) {
-                        Some([socket_addr_str, file_name_str]) => {
-                            let socket_addr = match SocketAddr::from_str(socket_addr_str) {
-                                Ok(addr) => addr,
-                                Err(e) => {
-                                    eprintln!("Invalid address '{}': {}", socket_addr_str, e);
+                        Some([nickname_str, file_name_str]) => {
+                            let socket_addr = match state::get_socket_from_nickname(nickname_str) {
+                                Some(socket_addr) => socket_addr,
+                                None => {
+                                    eprintln!("Unknown Nickname '{}'", nickname_str);
                                     continue;
                                 }
                             };
@@ -213,36 +249,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             );
                         }
                         _ => {
-                            println!("Usage: upload 256.256.256.256:5200 file_name");
+                            println!("Usage: upload <nickname> file_name");
                         }
                     },
                     Some("download") => match parts.get(1..3) {
-                        Some([socket_addr_str, file_name_str]) => {
-                            let socket_addr = match SocketAddr::from_str(socket_addr_str) {
-                                Ok(addr) => addr,
-                                Err(e) => {
-                                    eprintln!("Invalid address '{}': {}", socket_addr_str, e);
+                        Some([nickname_str, file_name_str]) => {
+                            let socket_addr = match state::get_socket_from_nickname(nickname_str) {
+                                Some(socket_addr) => socket_addr,
+                                None => {
+                                    eprintln!("Unknown Nickname '{}'", nickname_str);
                                     continue;
                                 }
                             };
 
                             let file_name = file_name_str.to_string();
 
-                            if !state::is_client_connected(socket_addr) {
-                                let file_hash = match state::remote_file_name_to_hash(
-                                    socket_addr,
-                                    &file_name,
-                                ) {
+                            let file_hash =
+                                match state::remote_file_name_to_hash(socket_addr, &file_name) {
                                     Some(file_hash) => file_hash,
                                     _ => {
                                         eprintln!(
                                             "Can't find file {} in {}",
-                                            socket_addr, file_name_str
+                                            file_name_str, socket_addr
                                         );
                                         continue;
                                     }
                                 };
 
+                            if !state::is_client_connected(socket_addr) {
                                 let clients = state::find_clients_with_hash(&file_hash);
 
                                 if clients.len() >= 1 {
@@ -263,6 +297,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 continue;
                             }
 
+                            state::approve_transfer(
+                                socket_addr,
+                                state::FileDirection::DOWNLOAD,
+                                file_name.clone(),
+                                file_hash,
+                            );
+
                             let wrapped_message = pb::WrappedMessage {
                                 payload: Some(pb::wrapped_message::Payload::FileDownloadRequest(
                                     pb::FileDownloadRequest {
@@ -279,16 +320,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         _ => {
                             println!(
                                 "Usage: {}",
-                                "download 256.256.256.256:5200 <file_name>".yellow().bold()
+                                "download <nickname> <file_name>".yellow().bold()
                             );
                         }
                     },
-                    Some("contact") => match parts.get(1..2) {
-                        Some([socket_addr_str]) => {
-                            let socket_addr = match SocketAddr::from_str(socket_addr_str) {
-                                Ok(socket_addr) => socket_addr,
-                                Err(e) => {
-                                    eprintln!("Error parsing address {}", e);
+                    Some("listfiles") => match parts.get(1..2) {
+                        Some([nickname_str]) => {
+                            let socket_addr = match state::get_socket_from_nickname(nickname_str) {
+                                Some(socket_addr) => socket_addr,
+                                None => {
+                                    eprintln!("Unknown Nickname '{}'", nickname_str);
                                     continue;
                                 }
                             };
@@ -297,6 +338,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 println!("Status: Connected");
                             } else {
                                 println!("Status: Offline");
+                            }
+
+                            let nickname = state::get_nickname_from_socket(socket_addr);
+                            if nickname.is_some() {
+                                println!("Nickname: {}", nickname.unwrap());
+                            } else {
+                                println!("Nickname: N/A")
                             }
 
                             let rsa_key = state::get_client_rsa_key(socket_addr);
@@ -312,80 +360,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 )),
                             };
                             state::add_outgoing_message(socket_addr, wrapped_message);
-                            state::print_client_file_list(socket_addr); // Won't be updated
+                            std::thread::sleep(std::time::Duration::from_millis(100));
+
+                            state::print_client_file_list(socket_addr);
                         }
                         _ => {
-                            state::print_clients();
-
-                            println!(
-                                "\nUsage: {}",
-                                "contact 256.256.256.256:5200".yellow().bold()
-                            );
+                            println!("\nUsage: {}", "listfiles <nickname>".yellow().bold());
                         }
                     },
-                    Some("approve") => {
-                        println!("{:?}", parts);
-                        match parts.get(1..4) {
-                            Some([socket_addr_str, file_direction_str, file_name_str]) => {
-                                let socket_addr = match SocketAddr::from_str(socket_addr_str) {
-                                    Ok(socket_addr) => socket_addr,
-                                    Err(e) => {
-                                        eprintln!("Error parsing address {}", e);
-                                        continue;
-                                    }
-                                };
-                                let file_direction = match *file_direction_str {
-                                    "upload" => state::FileDirection::UPLOAD,
-                                    "download" => state::FileDirection::DOWNLOAD,
-                                    _ => {
-                                        eprintln!("Invalid file direction. Must be 'upload' or 'download'");
-                                        continue;
-                                    }
-                                };
-
-                                let file_name = file_name_str.to_string();
-
-                                let get_hash_function = match file_direction {
-                                    state::FileDirection::UPLOAD => {
-                                        state::get_pending_hash_from_name
-                                    }
-                                    state::FileDirection::DOWNLOAD => state::file_name_to_hash,
-                                };
-                                let file_hash: String = match get_hash_function(&file_name) {
-                                    Some(hash) => hash,
-                                    None => {
-                                        eprintln!(
-                                            "File '{}' not found for direction: {:?}",
-                                            file_name, file_direction
-                                        );
-                                        continue;
-                                    }
-                                };
-
-                                state::approve_transfer(
-                                    socket_addr,
-                                    file_direction,
-                                    file_name,
-                                    file_hash,
-                                );
-                                println!("Approved transfer");
-                            }
-                            _ => {
-                                println!(
-                                    "Usage: {}",
-                                    "approve 256.256.256.256:5200 <upload|download> <file_name>"
-                                        .yellow()
-                                        .bold()
-                                );
-                            }
-                        }
-                    }
-                    Some("reject") => match parts.get(1..4) {
-                        Some([socket_addr_str, file_direction_str, file_name_str]) => {
-                            let socket_addr = match SocketAddr::from_str(socket_addr_str) {
-                                Ok(socket_addr) => socket_addr,
-                                Err(e) => {
-                                    eprintln!("Error parsing address {}", e);
+                    Some("approve") => match parts.get(1..4) {
+                        Some([nickname_str, file_direction_str, file_name_str]) => {
+                            let socket_addr = match state::get_socket_from_nickname(nickname_str) {
+                                Some(socket_addr) => socket_addr,
+                                None => {
+                                    eprintln!("Unknown Nickname '{}'", nickname_str);
                                     continue;
                                 }
                             };
@@ -410,7 +398,61 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 Some(hash) => hash,
                                 None => {
                                     eprintln!(
-                                        "File '{}' not found for direction: {:?}",
+                                        "File '{}' not found for direction: {}",
+                                        file_name, file_direction
+                                    );
+                                    continue;
+                                }
+                            };
+
+                            state::approve_transfer(
+                                socket_addr,
+                                file_direction,
+                                file_name,
+                                file_hash,
+                            );
+                            println!("Approved transfer");
+                        }
+                        _ => {
+                            println!(
+                                "Usage: {}",
+                                "approve <nickname> <upload|download> <file_name>"
+                                    .yellow()
+                                    .bold()
+                            );
+                        }
+                    },
+                    Some("reject") => match parts.get(1..4) {
+                        Some([nickname_str, file_direction_str, file_name_str]) => {
+                            let socket_addr = match state::get_socket_from_nickname(nickname_str) {
+                                Some(socket_addr) => socket_addr,
+                                None => {
+                                    eprintln!("Unknown Nickname '{}'", nickname_str);
+                                    continue;
+                                }
+                            };
+                            let file_direction = match *file_direction_str {
+                                "upload" => state::FileDirection::UPLOAD,
+                                "download" => state::FileDirection::DOWNLOAD,
+                                _ => {
+                                    eprintln!(
+                                        "Invalid file direction. Must be 'upload' or 'download'"
+                                    );
+                                    continue;
+                                }
+                            };
+
+                            let file_name = file_name_str.to_string();
+
+                            let get_hash_function = match file_direction {
+                                state::FileDirection::UPLOAD => state::get_pending_hash_from_name,
+                                state::FileDirection::DOWNLOAD => state::file_name_to_hash,
+                            };
+                            let file_hash: String = match get_hash_function(&file_name) {
+                                Some(hash) => hash,
+                                None => {
+                                    eprintln!(
+                                        "File '{}' not found for direction: {}",
                                         file_name, file_direction
                                     );
                                     continue;
@@ -428,7 +470,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         _ => {
                             println!(
                                 "Usage: {}",
-                                "reject 256.256.256.256:5200 <upload|download> <file_name>"
+                                "reject <nickname> <upload|download> <file_name>"
                                     .yellow()
                                     .bold()
                             );

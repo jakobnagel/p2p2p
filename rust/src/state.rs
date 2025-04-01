@@ -8,13 +8,13 @@ use rsa::signature::{SignerMut, Verifier};
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::fs;
 use std::io::{self, Read, Write};
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Mutex, RwLock};
 use std::thread::JoinHandle;
+use std::{fmt, fs};
 use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
 
 use crate::pb;
@@ -25,6 +25,8 @@ lazy_static! {
         files: HashMap::new()
     });
     static ref CLIENT_DATA: RwLock<HashMap<SocketAddr, RwLock<ClientData>>> =
+        RwLock::new(HashMap::new());
+    static ref NICKNAME_TO_SOCKET: RwLock<HashMap<String, SocketAddr>> =
         RwLock::new(HashMap::new());
     static ref OUTGOING_MESSAGES: RwLock<Vec<(SocketAddr, pb::WrappedMessage)>> =
         RwLock::new(Vec::new());
@@ -66,8 +68,17 @@ pub enum FileDirection {
     DOWNLOAD = 2,
 }
 
+impl fmt::Display for FileDirection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FileDirection::UPLOAD => write!(f, "UPLOAD"),
+            FileDirection::DOWNLOAD => write!(f, "DOWNLOAD"),
+        }
+    }
+}
+
 pub struct ClientData {
-    // hostname: hostname
+    nickname: Option<String>,
     connections: u16,
     rsa_public: Option<VerifyingKey<Sha256>>,
     aes_ephemeral: Option<EphemeralSecret>,
@@ -366,6 +377,103 @@ pub fn decrement_client_connections(socket_addr: SocketAddr) -> u16 {
     client_data.connections
 }
 
+pub fn set_client_nickname(socket_addr: SocketAddr, nickname: String) -> Result<(), ()> {
+    init_client_data(socket_addr);
+
+    {
+        let nickname_to_socket_map = NICKNAME_TO_SOCKET.read().unwrap();
+        if nickname_to_socket_map.contains_key(&nickname) {
+            return Err(());
+        }
+    }
+    {
+        let client_data_map = CLIENT_DATA.read().unwrap();
+        let mut client_data = client_data_map.get(&socket_addr).unwrap().write().unwrap();
+        client_data.nickname = Some(nickname.clone());
+    }
+    {
+        let mut nickname_to_socket_map = NICKNAME_TO_SOCKET.write().unwrap();
+        nickname_to_socket_map.insert(nickname.clone(), socket_addr);
+    }
+    Ok(())
+}
+
+pub fn set_client_nickname_randomly(socket_addr: SocketAddr) {
+    let mut rng = OsRng;
+    let mut nickname = String::with_capacity(8);
+    for _ in 0..6 {
+        let random_val = rng.next_u32();
+        let offset = random_val % 26;
+        let c = (b'a' + offset as u8) as char;
+        nickname.push(c);
+    }
+    set_client_nickname(socket_addr, nickname).unwrap();
+}
+
+pub fn change_client_nickname(old_nickname: String, new_nickname: String) -> Result<(), ()> {
+    // Ensure old name is valid and save socket
+    let socket_addr = match get_socket_from_nickname(&old_nickname) {
+        Some(socket_addr) => socket_addr,
+        None => return Err(()),
+    };
+
+    // Check new nickname is free
+    if get_socket_from_nickname(&new_nickname).is_some() {
+        return Err(());
+    }
+    {
+        let client_data_map = CLIENT_DATA.read().unwrap();
+        let mut client_data = client_data_map.get(&socket_addr).unwrap().write().unwrap();
+        client_data.nickname = Some(new_nickname.clone());
+    }
+    {
+        let mut nickname_to_socket_map = NICKNAME_TO_SOCKET.write().unwrap();
+        nickname_to_socket_map.remove(&old_nickname);
+        nickname_to_socket_map.insert(new_nickname.clone(), socket_addr);
+    }
+    Ok(())
+}
+
+pub fn get_nickname_from_socket(socket_addr: SocketAddr) -> Option<String> {
+    let client_data_map = CLIENT_DATA.read().unwrap();
+    let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
+
+    client_data.nickname.clone()
+}
+
+pub fn get_socket_from_nickname(nickname: &str) -> Option<SocketAddr> {
+    let nickname_to_socket_map = NICKNAME_TO_SOCKET.read().unwrap();
+    log::info!(
+        "Mapped {} to {:?}",
+        nickname,
+        nickname_to_socket_map.get(nickname)
+    );
+    nickname_to_socket_map.get(nickname).cloned()
+}
+
+pub fn migrate_client_socket(nickname: &str, new_socket_addr: SocketAddr) -> Result<(), ()> {
+    let old_socket_addr = match get_socket_from_nickname(&nickname) {
+        Some(socket_addr) => socket_addr,
+        None => return Err(()),
+    };
+
+    if get_nickname_from_socket(new_socket_addr).is_some() {
+        return Err(());
+    }
+    {
+        let mut client_data_map = CLIENT_DATA.write().unwrap();
+        if let Some(v) = client_data_map.remove(&old_socket_addr) {
+            client_data_map.insert(new_socket_addr, v);
+        }
+    }
+    {
+        let mut nickname_to_socket_map = NICKNAME_TO_SOCKET.write().unwrap();
+        nickname_to_socket_map.remove(nickname);
+        nickname_to_socket_map.insert(nickname.to_string(), new_socket_addr);
+    }
+    Ok(())
+}
+
 pub fn set_client_file_list(socket_addr: SocketAddr, file_map: HashMap<String, File>) {
     let client_data_map = CLIENT_DATA.read().unwrap();
     let mut client_data = client_data_map.get(&socket_addr).unwrap().write().unwrap();
@@ -411,6 +519,7 @@ pub fn init_client_data(socket_addr: SocketAddr) {
     let ephemeral_secret = EphemeralSecret::random_from_rng(OsRng);
     let public_key = PublicKey::from(&ephemeral_secret);
     let client_data = ClientData {
+        nickname: None,
         connections: 0,
         rsa_public: None,
         aes_ephemeral: Some(ephemeral_secret),
@@ -434,15 +543,16 @@ pub fn remove_client_data(socket_addr: SocketAddr) {
 
 pub fn print_clients() {
     let client_data_map = CLIENT_DATA.read().unwrap();
-    println!("socket, connections, rsa, aes");
+    println!("nickname, connections, rsa used, aes used, socket");
     for (socket_addr, client_data) in client_data_map.iter() {
         let client_data = client_data.read().unwrap();
         println!(
-            "{} {} {:?} {:?}",
-            socket_addr,
+            "{} {} {} {:?} {:?}",
+            client_data.nickname.clone().unwrap(),
             client_data.connections,
             client_data.rsa_public.is_some(),
             client_data.aes_shared.is_some(),
+            socket_addr,
         );
     }
 }

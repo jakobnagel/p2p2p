@@ -4,7 +4,6 @@ use std::time::{Duration, Instant};
 use crate::pb;
 use crate::state::{self, FileDirection};
 use colored::*;
-use log::info;
 use num_traits::cast::ToPrimitive;
 use prost::Message;
 use rsa::pkcs1v15::Signature;
@@ -258,23 +257,24 @@ pub fn handle_message(
                 socket_addr, file_name, file_hash
             );
 
-            // if !state::get_transfer_approval(
-            //     socket_addr,
-            //     FileDirection::DOWNLOAD,
-            //     file_hash.clone(),
-            // ) {
-            //     log::info!(
-            //         "[{}]: download wasn't requested or doesn't match hash {} {}",
-            //         socket_addr,
-            //         file_name,
-            //         file_hash
-            //     );
-            //     return Some(pb::WrappedMessage {
-            //         payload: Some(pb::wrapped_message::Payload::Error(pb::Error {
-            //             message: "Download wasn't requested or doesn't match hash".to_string(),
-            //         })),
-            //     });
-            // }
+            if !state::get_transfer_approval(
+                socket_addr,
+                FileDirection::DOWNLOAD,
+                file_name.clone(),
+                file_hash.clone(),
+            ) {
+                log::info!(
+                    "[{}]: download wasn't requested or doesn't match hash {} {}",
+                    socket_addr,
+                    file_name,
+                    file_hash
+                );
+                return Some(pb::WrappedMessage {
+                    payload: Some(pb::wrapped_message::Payload::Error(pb::Error {
+                        message: "Download wasn't requested or doesn't match hash".to_string(),
+                    })),
+                });
+            }
 
             state::set_file(state::File {
                 file_name,
@@ -401,9 +401,11 @@ pub fn unsign_decrypt_message(
     use_client_encryption: &state::EncryptionModes,
     signed_message: &pb::SignedMessage,
 ) -> Result<pb::WrappedMessage, Box<dyn std::error::Error>> {
-    info!(
+    log::info!(
         "[{}]: decrypting: rsa: {}, aes: {}",
-        socket_addr, use_client_encryption.use_rsa, use_client_encryption.use_aes
+        socket_addr,
+        use_client_encryption.use_rsa,
+        use_client_encryption.use_aes
     );
 
     // Check what encryption modes are used

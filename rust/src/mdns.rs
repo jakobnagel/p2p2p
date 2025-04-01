@@ -5,10 +5,7 @@ use log;
 use mdns_sd::{Receiver, Result, ServiceDaemon, ServiceEvent, ServiceInfo};
 use std::{
     net::{IpAddr, SocketAddr},
-    sync::{
-        atomic::Ordering,
-        mpsc::{RecvTimeoutError, TryRecvError},
-    },
+    sync::atomic::Ordering,
     time::Duration,
 };
 
