@@ -5,6 +5,8 @@ import (
 	"testing"
 )
 
+// Test to ensure an invalid key can not decrypt a message
+// an attacker trying to encrypt a message with a different key will not succeed
 func TestInvalidKey(t *testing.T) {
 	validKey := make([]byte, 32)
 	rand.Read(validKey)
@@ -32,6 +34,8 @@ func TestInvalidKey(t *testing.T) {
 	}
 }
 
+// Test to ensure an invalid nonce can not decrypt a message
+// an attacker trying to encrypt a message with a different nonce will not succeed
 func TestInvalidNonce(t *testing.T) {
 	key := make([]byte, 32)
 	rand.Read(key)
