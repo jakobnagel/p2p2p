@@ -1,6 +1,7 @@
 from os import listdir, getcwd
 from os.path import isfile, join
 import message_pb2
+import random
 from util.hash import hash_data
 from util.encryption import encrypt, decrypt
 from util.rsa import get_RSA_signature, verify_RSA_signature
@@ -67,6 +68,17 @@ def create_file_download(local_rsa_priv_key, aes_key, fname):
     signed_msg_bytes = build_and_serialize_signed_msg(local_rsa_priv_key, aes_key, wrapped_msg)
     return signed_msg_bytes
 
+def complete_file_download(fname, fdata):
+    full_fpath = join(join(getcwd(), "files"), fname)
+    if isfile(full_fpath):
+        new_fname = fname + str(random.randint(0,100000))
+        print(f"File {fname} already exists. Saving new file as {new_fname}")
+        complete_file_download(new_fname, fdata)
+    else:
+        with open(full_fpath, 'wb') as f:
+            f.write(fdata)
+        print(f"File {fname} saved.\n")
+
 
 def consume_message(local_rsa_priv_key, peer_rsa_pub_key, aes_key, serialized_msg):
     received_msg = message_pb2.SignedMessage()
@@ -99,6 +111,9 @@ def consume_message(local_rsa_priv_key, peer_rsa_pub_key, aes_key, serialized_ms
 
     elif plain_payload.HasField("file_download"):
         print('file_download received')
+        fname = plain_payload.file_download.file_name
+        fdata = plain_payload.file_download.file_data
+        complete_file_download(fname, fdata)
 
     elif plain_payload.HasField("file_upload_request"):
         print('file_upload_request received')
