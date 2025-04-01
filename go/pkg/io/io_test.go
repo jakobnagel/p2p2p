@@ -1,10 +1,10 @@
 package io
 
-import (
-	"testing"
-)
+// import (
+// 	"testing"
+// )
 
-func TestIO(t *testing.T) {
-	password := GetUserPassword()
-	t.Log(password)
-}
+// func TestIO(t *testing.T) {
+// 	password := GetUserPassword()
+// 	t.Log(password)
+// }

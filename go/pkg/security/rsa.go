@@ -9,14 +9,11 @@ import (
 	"encoding/binary"
 	"encoding/pem"
 	"fmt"
-	"math/big"
 	"net"
 	"os"
 	"strings"
 
-	"google.golang.org/protobuf/proto"
 	"nagelbros.com/p2p2p/pkg/config"
-	pb "nagelbros.com/p2p2p/types/security"
 )
 
 func readOrGeneratePrivateRsaKey() (*rsa.PrivateKey, error) {
@@ -25,7 +22,7 @@ func readOrGeneratePrivateRsaKey() (*rsa.PrivateKey, error) {
 		fmt.Printf("Could not read private key: %s\n", err)
 		fmt.Printf("Generating new RSA key\n")
 
-		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		privateKey, err := generateRsaKey()
 		if err != nil {
 			return nil, fmt.Errorf("could not generate RSA key: %s", err)
 		}
@@ -60,47 +57,11 @@ func readOrGeneratePrivateRsaKey() (*rsa.PrivateKey, error) {
 	return privateKey, nil
 }
 
-func acceptRsa(conn net.Conn) (*rsa.PublicKey, error) {
-	buffer := make([]byte, 1024)
-
-	bufSize, err := conn.Read(buffer)
-	if err != nil {
-		return nil, fmt.Errorf("could not read from connection: %s", err)
-	}
-
-	var clientRsaKeyMsg pb.RsaPublicKey
-	err = proto.Unmarshal(buffer[:bufSize], &clientRsaKeyMsg)
-	if err != nil {
-		return nil, fmt.Errorf("could unmarshal RSA key: %s", err)
-	}
-
-	n := big.NewInt(0)
-	n.SetBytes(clientRsaKeyMsg.N)
-
-	clientRsaKey := rsa.PublicKey{
-		N: n,
-		E: int(clientRsaKeyMsg.E),
-	}
-
-	return &clientRsaKey, nil
+func generateRsaKey() (*rsa.PrivateKey, error) {
+	return rsa.GenerateKey(rand.Reader, 2048)
 }
 
-func sendRsa(conn net.Conn, key *rsa.PublicKey) error {
-	publicKeyMsg := pb.RsaPublicKey{
-		N: key.N.Bytes(),
-		E: uint32(key.E),
-	}
-
-	publicKeyMsgBytes, err := proto.Marshal(&publicKeyMsg)
-	if err != nil {
-		return fmt.Errorf("could not marshal RSA key: %s", err)
-	}
-
-	_, err = conn.Write(publicKeyMsgBytes)
-	return err
-}
-
-func verifyRsaKey(fname string, addr net.Addr, key *rsa.PublicKey) error {
+func verifyKnownRsaKey(fname string, addr net.Addr, key *rsa.PublicKey) error {
 	f, err := os.Open(fname)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -161,4 +122,16 @@ func hashRsaKey(key *rsa.PublicKey) []byte {
 
 	hash.Write(append(key.N.Bytes(), e...))
 	return hash.Sum(nil)
+}
+
+func sign(data []byte, key *rsa.PrivateKey) ([]byte, error) {
+	hash := Hash.New()
+	hash.Write(data)
+	return rsa.SignPKCS1v15(rand.Reader, key, Hash, hash.Sum(nil))
+}
+
+func verify(data, signature []byte, key *rsa.PublicKey) error {
+	hash := Hash.New()
+	hash.Write(data)
+	return rsa.VerifyPKCS1v15(key, Hash, hash.Sum(nil), signature)
 }

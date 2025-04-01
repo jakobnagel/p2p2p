@@ -4,7 +4,7 @@ package p2p2p;
 
 import "security.proto";
 
-option go_package = "go/types/message;message";
+option go_package = "nagelbros.com/p2p2p/types/message;message";
 
 message SignedMessage {
   enum Encrypted_Message {
@@ -31,6 +31,7 @@ message WrappedMessage {
     FileDownloadRequest file_download_request = 4;
     FileDownload file_download = 5;
     FileUploadRequest file_upload_request = 6;
+    Confirmation confirmation = 8;
     Error error = 7;
   }
 }
@@ -63,6 +64,10 @@ message FileUploadRequest {
 
 message Error {
   string message = 1;
+}
+
+message Confirmation {
+  
 }
 
 // Basic Types

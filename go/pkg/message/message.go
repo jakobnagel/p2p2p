@@ -4,38 +4,33 @@ import (
 	"nagelbros.com/p2p2p/types/message"
 )
 
-func ErrorMessage(reason string) *message.Message {
-	return &message.Message{
-		Type: message.MessageType_ERROR,
-		Payload: &message.Message_Error{
+func ErrorMessage(reason string) *message.WrappedMessage {
+	return &message.WrappedMessage{
+		Payload: &message.WrappedMessage_Error{
 			Error: &message.Error{Message: reason},
 		},
 	}
 }
 
-func FileData(file []byte) *message.Message {
-	return &message.Message{
-		Type: message.MessageType_FILE,
-		Payload: &message.Message_File{
-			File: &message.File{Data: file},
+func FileData(fileName string, file []byte) *message.WrappedMessage {
+	return &message.WrappedMessage{
+		Payload: &message.WrappedMessage_FileDownload{
+			FileDownload: &message.FileDownload{FileName: fileName, FileData: file},
 		},
 	}
 }
 
-func FileList(files []*message.FileMetadata) *message.Message {
+func FileList(files []*message.FileMetadata) *message.WrappedMessage {
 	fileList := &message.FileList{Files: files}
-	return &message.Message{
-		Type: message.MessageType_FILE_LIST,
-		Payload: &message.Message_FileList{
+	return &message.WrappedMessage{
+		Payload: &message.WrappedMessage_FileList{
 			FileList: fileList,
 		},
 	}
 }
 
-func FileListRequest() *message.Message {
-	return &message.Message{
-		Type: message.MessageType_FILE_LIST_REQUEST,
-	}
+func FileListRequest() *message.WrappedMessage {
+	return &message.WrappedMessage{}
 }
 
 func FileMetadata(fileName string, hash []byte) *message.FileMetadata {
@@ -45,19 +40,17 @@ func FileMetadata(fileName string, hash []byte) *message.FileMetadata {
 	}
 }
 
-func FileDownloadRequest(fileName string) *message.Message {
-	return &message.Message{
-		Type: message.MessageType_FILE_DOWNLOAD_REQUEST,
-		Payload: &message.Message_FileDownloadRequest{
-			FileDownloadRequest: &message.FileDownloadRequeset{FileName: fileName},
+func FileDownloadRequest(fileName string) *message.WrappedMessage {
+	return &message.WrappedMessage{
+		Payload: &message.WrappedMessage_FileDownloadRequest{
+			FileDownloadRequest: &message.FileDownloadRequest{FileName: fileName},
 		},
 	}
 }
 
-func FileUploadRequest(fileName string, file []byte) *message.Message {
-	return &message.Message{
-		Type: message.MessageType_FILE_UPLOAD_REQUEST,
-		Payload: &message.Message_FileUploadRequest{
+func FileUploadRequest(fileName string, file []byte) *message.WrappedMessage {
+	return &message.WrappedMessage{
+		Payload: &message.WrappedMessage_FileUploadRequest{
 			FileUploadRequest: &message.FileUploadRequest{FileName: fileName, FileData: file},
 		},
 	}

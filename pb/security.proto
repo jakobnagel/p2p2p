@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package p2p2p;
 
-option go_package = "go/types/security;security";
+option go_package = "nagelbros.com/p2p2p/types/security;security";
 
 message RsaPublicKey {
   bytes n = 1;
