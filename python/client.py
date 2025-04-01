@@ -3,7 +3,7 @@
 from util.browser import browse
 from util.rsa import get_RSA_private_key, get_RSA_public_key, get_RSA_signature, verify_RSA_signature
 from util.intro import client_introduce
-from util.message import create_file_list_request, consume_message, create_file_list
+from util.message import create_file_list_request, consume_message, create_file_download_request
 import socket
 
 TYPE = "_ppp._tcp.local."
@@ -20,17 +20,24 @@ def main():
         s.connect((addr, int(port)))
         peer_rsa_pubkey, shared_dh_key = client_introduce(s, privkey, pubkey)
 
-        action = pick_action()
-        msg = action(privkey, shared_dh_key)
-        s.sendall(msg)
-        data = s.recv(1024)
-        if data:
-            reply = consume_message(privkey, peer_rsa_pubkey, shared_dh_key, data)
+        while True:
+            try:
+                print("\nCtrl+c to quit\n")
+                action = pick_action()
+                msg = action(privkey, shared_dh_key)
+                s.sendall(msg)
+                data = s.recv(1024)
+                reply = consume_message(privkey, peer_rsa_pubkey, shared_dh_key, data)
+                if reply:
+                    print("probably shouldnt be here")
+            except KeyboardInterrupt:
+                break
+
 
 def pick_action():
     options = [
         ("Request list of files", create_file_list_request),
-        ("Send your file list", create_file_list),
+        ("Request a file for download", create_file_download_request),
     ]
 
     cmd = -1
@@ -42,7 +49,7 @@ def pick_action():
             cmd = int(input("Select an action by entering the corresponding number. \n"))
             if cmd not in range(len(options)):
                 print("Invalid number")
-        except:
+        except ValueError:
             print("Invalid number")
 
     return options[cmd][1]

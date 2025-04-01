@@ -24,6 +24,7 @@ def main():
     # create and bind socket
     s = socket.socket()
     ip = socket.gethostbyname(NAME)
+    # ip = "10.216.252.234"
     port = 12345
     s.bind((NAME, port))
 
@@ -48,21 +49,13 @@ def main():
             with conn:
                 print(f"Connected by {addr}")
                 peer_rsa_pubkey, shared_dh_key = server_introduce(conn, privkey, pubkey)
-
-                data = conn.recv(1024)
-                reply = consume_message(privkey, peer_rsa_pubkey, shared_dh_key, data)
-                if reply:
-                    conn.sendall(reply)
-                else:
-                    conn.close()
-
-                # while True:
-                #     data = conn.recv(1024)
-                #     if not data:
-                #        break
-                #     print("got", data.decode())
-                #     data = input("what to send back?").encode()
-                #     conn.sendall(data)
+                while True:
+                    data = conn.recv(1024)
+                    if data:
+                        reply = consume_message(privkey, peer_rsa_pubkey, shared_dh_key, data)
+                        conn.sendall(reply if reply else b'')
+                    else:
+                        break
     except KeyboardInterrupt:
         pass
     finally:
