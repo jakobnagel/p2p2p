@@ -594,8 +594,19 @@ pub fn try_migrate_client_socket(
         new_socket_addr
     );
 
-    if let Some(existing_lock) = client_data_map.insert(new_socket_addr, client_data) {
-        match existing_lock.read() {
+    let old_client = client_data_map.get(&new_socket_addr).unwrap();
+    let aes_shared: Option<SharedSecret>;
+    {
+        let mut client_data_lock = old_client.write().unwrap();
+        aes_shared = Option::take(&mut client_data_lock.aes_shared);
+    }
+    {
+        let mut client_data_lock = client_data.write().unwrap();
+        client_data_lock.aes_shared = aes_shared;
+    }
+
+    if let Some(old_client) = client_data_map.insert(new_socket_addr, client_data) {
+        match old_client.read() {
             Ok(existing_data) => {
                 log::info!(
                     "Replaced existing client data at {} (Nickname: {:?}) during migration of '{}'.",
@@ -603,6 +614,7 @@ pub fn try_migrate_client_socket(
                     existing_data.nickname,
                     nickname
                 );
+
                 if let Some(replaced_nickname) = existing_data.nickname.as_ref() {
                     nickname_to_socket_map.remove(replaced_nickname);
                 }
