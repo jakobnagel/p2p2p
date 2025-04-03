@@ -12,7 +12,6 @@ import (
 	"nagelbros.com/p2p2p/pkg/mdns"
 	"nagelbros.com/p2p2p/pkg/message"
 	"nagelbros.com/p2p2p/pkg/security"
-	pb "nagelbros.com/p2p2p/types/message"
 )
 
 var command string
@@ -168,12 +167,12 @@ func getFile(conn *security.SecConn, fileName string) {
 		return
 	}
 
-	if resp.GetType() == pb.MessageType_ERROR {
-		fmt.Printf("Could not receive message: %s\n", resp.GetError().Message)
+	fileDownload := resp.GetFileDownload()
+	if fileDownload == nil {
+		fmt.Printf("Could not get file download message\n")
 		return
 	}
-
-	fileData := resp.GetFile().Data
+	fileData := fileDownload.FileData
 
 	if !files.VerifyFile(fileData, fileName) {
 		fmt.Printf("File hash does not match known file\n")

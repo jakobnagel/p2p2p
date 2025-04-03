@@ -2,13 +2,14 @@
 // versions:
 // 	protoc-gen-go v1.36.5
 // 	protoc        v5.29.3
-// source: pb/message.proto
+// source: message.proto
 
 package message
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	security "nagelbros.com/p2p2p/types/security"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -21,93 +22,136 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// first thing sent by the client after secure connection is established
-type MessageType int32
+type SignedMessage_Encrypted_Message int32
 
 const (
-	MessageType_FILE_DOWNLOAD_REQUEST MessageType = 0
-	MessageType_FILE_UPLOAD_REQUEST   MessageType = 1
-	MessageType_FILE_LIST_REQUEST     MessageType = 2
-	MessageType_FILE                  MessageType = 3
-	MessageType_FILE_LIST             MessageType = 4
-	MessageType_CONFIRMATION          MessageType = 5
-	MessageType_ERROR                 MessageType = 6
+	SignedMessage_ENCRYPTED_WRAPPED_MESSAGE SignedMessage_Encrypted_Message = 0
+	SignedMessage_WRAPPED_MESSAGE           SignedMessage_Encrypted_Message = 1
 )
 
-// Enum value maps for MessageType.
+// Enum value maps for SignedMessage_Encrypted_Message.
 var (
-	MessageType_name = map[int32]string{
-		0: "FILE_DOWNLOAD_REQUEST",
-		1: "FILE_UPLOAD_REQUEST",
-		2: "FILE_LIST_REQUEST",
-		3: "FILE",
-		4: "FILE_LIST",
-		5: "CONFIRMATION",
-		6: "ERROR",
+	SignedMessage_Encrypted_Message_name = map[int32]string{
+		0: "ENCRYPTED_WRAPPED_MESSAGE",
+		1: "WRAPPED_MESSAGE",
 	}
-	MessageType_value = map[string]int32{
-		"FILE_DOWNLOAD_REQUEST": 0,
-		"FILE_UPLOAD_REQUEST":   1,
-		"FILE_LIST_REQUEST":     2,
-		"FILE":                  3,
-		"FILE_LIST":             4,
-		"CONFIRMATION":          5,
-		"ERROR":                 6,
+	SignedMessage_Encrypted_Message_value = map[string]int32{
+		"ENCRYPTED_WRAPPED_MESSAGE": 0,
+		"WRAPPED_MESSAGE":           1,
 	}
 )
 
-func (x MessageType) Enum() *MessageType {
-	p := new(MessageType)
+func (x SignedMessage_Encrypted_Message) Enum() *SignedMessage_Encrypted_Message {
+	p := new(SignedMessage_Encrypted_Message)
 	*p = x
 	return p
 }
 
-func (x MessageType) String() string {
+func (x SignedMessage_Encrypted_Message) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (MessageType) Descriptor() protoreflect.EnumDescriptor {
-	return file_pb_message_proto_enumTypes[0].Descriptor()
+func (SignedMessage_Encrypted_Message) Descriptor() protoreflect.EnumDescriptor {
+	return file_message_proto_enumTypes[0].Descriptor()
 }
 
-func (MessageType) Type() protoreflect.EnumType {
-	return &file_pb_message_proto_enumTypes[0]
+func (SignedMessage_Encrypted_Message) Type() protoreflect.EnumType {
+	return &file_message_proto_enumTypes[0]
 }
 
-func (x MessageType) Number() protoreflect.EnumNumber {
+func (x SignedMessage_Encrypted_Message) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use MessageType.Descriptor instead.
-func (MessageType) EnumDescriptor() ([]byte, []int) {
-	return file_pb_message_proto_rawDescGZIP(), []int{0}
+// Deprecated: Use SignedMessage_Encrypted_Message.Descriptor instead.
+func (SignedMessage_Encrypted_Message) EnumDescriptor() ([]byte, []int) {
+	return file_message_proto_rawDescGZIP(), []int{0, 0}
+}
+
+type SignedMessage struct {
+	state            protoimpl.MessageState          `protogen:"open.v1"`
+	EncryptedMessage SignedMessage_Encrypted_Message `protobuf:"varint,1,opt,name=encrypted_message,json=encryptedMessage,proto3,enum=p2p2p.SignedMessage_Encrypted_Message" json:"encrypted_message,omitempty"`
+	SignedPayload    []byte                          `protobuf:"bytes,2,opt,name=signed_payload,json=signedPayload,proto3" json:"signed_payload,omitempty"` // SignedPayload type (either wrapped or encrypted & wrapped)
+	RsaSignature     []byte                          `protobuf:"bytes,3,opt,name=rsa_signature,json=rsaSignature,proto3" json:"rsa_signature,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *SignedMessage) Reset() {
+	*x = SignedMessage{}
+	mi := &file_message_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignedMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignedMessage) ProtoMessage() {}
+
+func (x *SignedMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_message_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignedMessage.ProtoReflect.Descriptor instead.
+func (*SignedMessage) Descriptor() ([]byte, []int) {
+	return file_message_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *SignedMessage) GetEncryptedMessage() SignedMessage_Encrypted_Message {
+	if x != nil {
+		return x.EncryptedMessage
+	}
+	return SignedMessage_ENCRYPTED_WRAPPED_MESSAGE
+}
+
+func (x *SignedMessage) GetSignedPayload() []byte {
+	if x != nil {
+		return x.SignedPayload
+	}
+	return nil
+}
+
+func (x *SignedMessage) GetRsaSignature() []byte {
+	if x != nil {
+		return x.RsaSignature
+	}
+	return nil
 }
 
 // used to wrap encrypted messages
-type MessageWrapper struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Message       []byte                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"` // encrypted
-	Signature     []byte                 `protobuf:"bytes,2,opt,name=signature,proto3" json:"signature,omitempty"`
-	Nonce         []byte                 `protobuf:"bytes,3,opt,name=nonce,proto3" json:"nonce,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+type EncryptedMessage struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	EncryptedPayload []byte                 `protobuf:"bytes,1,opt,name=encrypted_payload,json=encryptedPayload,proto3" json:"encrypted_payload,omitempty"` // encrypted wrapped message
+	AesNonce         []byte                 `protobuf:"bytes,2,opt,name=aes_nonce,json=aesNonce,proto3" json:"aes_nonce,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
-func (x *MessageWrapper) Reset() {
-	*x = MessageWrapper{}
-	mi := &file_pb_message_proto_msgTypes[0]
+func (x *EncryptedMessage) Reset() {
+	*x = EncryptedMessage{}
+	mi := &file_message_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *MessageWrapper) String() string {
+func (x *EncryptedMessage) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*MessageWrapper) ProtoMessage() {}
+func (*EncryptedMessage) ProtoMessage() {}
 
-func (x *MessageWrapper) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_message_proto_msgTypes[0]
+func (x *EncryptedMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_message_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -118,62 +162,57 @@ func (x *MessageWrapper) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MessageWrapper.ProtoReflect.Descriptor instead.
-func (*MessageWrapper) Descriptor() ([]byte, []int) {
-	return file_pb_message_proto_rawDescGZIP(), []int{0}
+// Deprecated: Use EncryptedMessage.ProtoReflect.Descriptor instead.
+func (*EncryptedMessage) Descriptor() ([]byte, []int) {
+	return file_message_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *MessageWrapper) GetMessage() []byte {
+func (x *EncryptedMessage) GetEncryptedPayload() []byte {
 	if x != nil {
-		return x.Message
+		return x.EncryptedPayload
 	}
 	return nil
 }
 
-func (x *MessageWrapper) GetSignature() []byte {
+func (x *EncryptedMessage) GetAesNonce() []byte {
 	if x != nil {
-		return x.Signature
+		return x.AesNonce
 	}
 	return nil
 }
 
-func (x *MessageWrapper) GetNonce() []byte {
-	if x != nil {
-		return x.Nonce
-	}
-	return nil
-}
-
-type Message struct {
+type WrappedMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Type  MessageType            `protobuf:"varint,1,opt,name=type,proto3,enum=p2p2p.MessageType" json:"type,omitempty"`
 	// Types that are valid to be assigned to Payload:
 	//
-	//	*Message_FileDownloadRequest
-	//	*Message_FileUploadRequest
-	//	*Message_FileList
-	//	*Message_File
-	//	*Message_Error
-	Payload       isMessage_Payload `protobuf_oneof:"payload"`
+	//	*WrappedMessage_Introduction
+	//	*WrappedMessage_FileListRequest
+	//	*WrappedMessage_FileList
+	//	*WrappedMessage_FileDownloadRequest
+	//	*WrappedMessage_FileDownload
+	//	*WrappedMessage_FileUploadRequest
+	//	*WrappedMessage_Confirmation
+	//	*WrappedMessage_Error
+	Payload       isWrappedMessage_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *Message) Reset() {
-	*x = Message{}
-	mi := &file_pb_message_proto_msgTypes[1]
+func (x *WrappedMessage) Reset() {
+	*x = WrappedMessage{}
+	mi := &file_message_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Message) String() string {
+func (x *WrappedMessage) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Message) ProtoMessage() {}
+func (*WrappedMessage) ProtoMessage() {}
 
-func (x *Message) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_message_proto_msgTypes[1]
+func (x *WrappedMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_message_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -184,215 +223,297 @@ func (x *Message) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Message.ProtoReflect.Descriptor instead.
-func (*Message) Descriptor() ([]byte, []int) {
-	return file_pb_message_proto_rawDescGZIP(), []int{1}
+// Deprecated: Use WrappedMessage.ProtoReflect.Descriptor instead.
+func (*WrappedMessage) Descriptor() ([]byte, []int) {
+	return file_message_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *Message) GetType() MessageType {
-	if x != nil {
-		return x.Type
-	}
-	return MessageType_FILE_DOWNLOAD_REQUEST
-}
-
-func (x *Message) GetPayload() isMessage_Payload {
+func (x *WrappedMessage) GetPayload() isWrappedMessage_Payload {
 	if x != nil {
 		return x.Payload
 	}
 	return nil
 }
 
-func (x *Message) GetFileDownloadRequest() *FileDownloadRequeset {
+func (x *WrappedMessage) GetIntroduction() *Introduction {
 	if x != nil {
-		if x, ok := x.Payload.(*Message_FileDownloadRequest); ok {
-			return x.FileDownloadRequest
+		if x, ok := x.Payload.(*WrappedMessage_Introduction); ok {
+			return x.Introduction
 		}
 	}
 	return nil
 }
 
-func (x *Message) GetFileUploadRequest() *FileUploadRequest {
+func (x *WrappedMessage) GetFileListRequest() *FileListRequest {
 	if x != nil {
-		if x, ok := x.Payload.(*Message_FileUploadRequest); ok {
-			return x.FileUploadRequest
+		if x, ok := x.Payload.(*WrappedMessage_FileListRequest); ok {
+			return x.FileListRequest
 		}
 	}
 	return nil
 }
 
-func (x *Message) GetFileList() *FileList {
+func (x *WrappedMessage) GetFileList() *FileList {
 	if x != nil {
-		if x, ok := x.Payload.(*Message_FileList); ok {
+		if x, ok := x.Payload.(*WrappedMessage_FileList); ok {
 			return x.FileList
 		}
 	}
 	return nil
 }
 
-func (x *Message) GetFile() *File {
+func (x *WrappedMessage) GetFileDownloadRequest() *FileDownloadRequest {
 	if x != nil {
-		if x, ok := x.Payload.(*Message_File); ok {
-			return x.File
+		if x, ok := x.Payload.(*WrappedMessage_FileDownloadRequest); ok {
+			return x.FileDownloadRequest
 		}
 	}
 	return nil
 }
 
-func (x *Message) GetError() *Error {
+func (x *WrappedMessage) GetFileDownload() *FileDownload {
 	if x != nil {
-		if x, ok := x.Payload.(*Message_Error); ok {
+		if x, ok := x.Payload.(*WrappedMessage_FileDownload); ok {
+			return x.FileDownload
+		}
+	}
+	return nil
+}
+
+func (x *WrappedMessage) GetFileUploadRequest() *FileUploadRequest {
+	if x != nil {
+		if x, ok := x.Payload.(*WrappedMessage_FileUploadRequest); ok {
+			return x.FileUploadRequest
+		}
+	}
+	return nil
+}
+
+func (x *WrappedMessage) GetConfirmation() *Confirmation {
+	if x != nil {
+		if x, ok := x.Payload.(*WrappedMessage_Confirmation); ok {
+			return x.Confirmation
+		}
+	}
+	return nil
+}
+
+func (x *WrappedMessage) GetError() *Error {
+	if x != nil {
+		if x, ok := x.Payload.(*WrappedMessage_Error); ok {
 			return x.Error
 		}
 	}
 	return nil
 }
 
-type isMessage_Payload interface {
-	isMessage_Payload()
+type isWrappedMessage_Payload interface {
+	isWrappedMessage_Payload()
 }
 
-type Message_FileDownloadRequest struct {
-	FileDownloadRequest *FileDownloadRequeset `protobuf:"bytes,2,opt,name=file_download_request,json=fileDownloadRequest,proto3,oneof"`
+type WrappedMessage_Introduction struct {
+	Introduction *Introduction `protobuf:"bytes,1,opt,name=introduction,proto3,oneof"`
 }
 
-type Message_FileUploadRequest struct {
-	FileUploadRequest *FileUploadRequest `protobuf:"bytes,3,opt,name=file_upload_request,json=fileUploadRequest,proto3,oneof"`
+type WrappedMessage_FileListRequest struct {
+	FileListRequest *FileListRequest `protobuf:"bytes,2,opt,name=file_list_request,json=fileListRequest,proto3,oneof"`
 }
 
-type Message_FileList struct {
-	FileList *FileList `protobuf:"bytes,4,opt,name=file_list,json=fileList,proto3,oneof"`
+type WrappedMessage_FileList struct {
+	FileList *FileList `protobuf:"bytes,3,opt,name=file_list,json=fileList,proto3,oneof"`
 }
 
-type Message_File struct {
-	File *File `protobuf:"bytes,5,opt,name=file,proto3,oneof"`
+type WrappedMessage_FileDownloadRequest struct {
+	FileDownloadRequest *FileDownloadRequest `protobuf:"bytes,4,opt,name=file_download_request,json=fileDownloadRequest,proto3,oneof"`
 }
 
-type Message_Error struct {
-	Error *Error `protobuf:"bytes,6,opt,name=error,proto3,oneof"`
+type WrappedMessage_FileDownload struct {
+	FileDownload *FileDownload `protobuf:"bytes,5,opt,name=file_download,json=fileDownload,proto3,oneof"`
 }
 
-func (*Message_FileDownloadRequest) isMessage_Payload() {}
-
-func (*Message_FileUploadRequest) isMessage_Payload() {}
-
-func (*Message_FileList) isMessage_Payload() {}
-
-func (*Message_File) isMessage_Payload() {}
-
-func (*Message_Error) isMessage_Payload() {}
-
-type Decline struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Reason        string                 `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+type WrappedMessage_FileUploadRequest struct {
+	FileUploadRequest *FileUploadRequest `protobuf:"bytes,6,opt,name=file_upload_request,json=fileUploadRequest,proto3,oneof"`
 }
 
-func (x *Decline) Reset() {
-	*x = Decline{}
-	mi := &file_pb_message_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
+type WrappedMessage_Confirmation struct {
+	Confirmation *Confirmation `protobuf:"bytes,8,opt,name=confirmation,proto3,oneof"`
 }
 
-func (x *Decline) String() string {
-	return protoimpl.X.MessageStringOf(x)
+type WrappedMessage_Error struct {
+	Error *Error `protobuf:"bytes,7,opt,name=error,proto3,oneof"`
 }
 
-func (*Decline) ProtoMessage() {}
+func (*WrappedMessage_Introduction) isWrappedMessage_Payload() {}
 
-func (x *Decline) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_message_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
+func (*WrappedMessage_FileListRequest) isWrappedMessage_Payload() {}
 
-// Deprecated: Use Decline.ProtoReflect.Descriptor instead.
-func (*Decline) Descriptor() ([]byte, []int) {
-	return file_pb_message_proto_rawDescGZIP(), []int{2}
-}
+func (*WrappedMessage_FileList) isWrappedMessage_Payload() {}
 
-func (x *Decline) GetReason() string {
-	if x != nil {
-		return x.Reason
-	}
-	return ""
-}
+func (*WrappedMessage_FileDownloadRequest) isWrappedMessage_Payload() {}
 
-type Confirmation struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
+func (*WrappedMessage_FileDownload) isWrappedMessage_Payload() {}
 
-func (x *Confirmation) Reset() {
-	*x = Confirmation{}
-	mi := &file_pb_message_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
+func (*WrappedMessage_FileUploadRequest) isWrappedMessage_Payload() {}
 
-func (x *Confirmation) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
+func (*WrappedMessage_Confirmation) isWrappedMessage_Payload() {}
 
-func (*Confirmation) ProtoMessage() {}
-
-func (x *Confirmation) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_message_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Confirmation.ProtoReflect.Descriptor instead.
-func (*Confirmation) Descriptor() ([]byte, []int) {
-	return file_pb_message_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *Confirmation) GetMessage() string {
-	if x != nil {
-		return x.Message
-	}
-	return ""
-}
+func (*WrappedMessage_Error) isWrappedMessage_Payload() {}
 
 // Protocol messages
-type FileDownloadRequeset struct {
+type Introduction struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RsaPublicKey  *security.RsaPublicKey `protobuf:"bytes,1,opt,name=rsa_public_key,json=rsaPublicKey,proto3" json:"rsa_public_key,omitempty"`
+	DiffeHellman  *security.DiffeHellman `protobuf:"bytes,2,opt,name=diffe_hellman,json=diffeHellman,proto3" json:"diffe_hellman,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Introduction) Reset() {
+	*x = Introduction{}
+	mi := &file_message_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Introduction) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Introduction) ProtoMessage() {}
+
+func (x *Introduction) ProtoReflect() protoreflect.Message {
+	mi := &file_message_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Introduction.ProtoReflect.Descriptor instead.
+func (*Introduction) Descriptor() ([]byte, []int) {
+	return file_message_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Introduction) GetRsaPublicKey() *security.RsaPublicKey {
+	if x != nil {
+		return x.RsaPublicKey
+	}
+	return nil
+}
+
+func (x *Introduction) GetDiffeHellman() *security.DiffeHellman {
+	if x != nil {
+		return x.DiffeHellman
+	}
+	return nil
+}
+
+type FileListRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileListRequest) Reset() {
+	*x = FileListRequest{}
+	mi := &file_message_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileListRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileListRequest) ProtoMessage() {}
+
+func (x *FileListRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_message_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileListRequest.ProtoReflect.Descriptor instead.
+func (*FileListRequest) Descriptor() ([]byte, []int) {
+	return file_message_proto_rawDescGZIP(), []int{4}
+}
+
+type FileList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Files         []*FileMetadata        `protobuf:"bytes,1,rep,name=files,proto3" json:"files,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileList) Reset() {
+	*x = FileList{}
+	mi := &file_message_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileList) ProtoMessage() {}
+
+func (x *FileList) ProtoReflect() protoreflect.Message {
+	mi := &file_message_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileList.ProtoReflect.Descriptor instead.
+func (*FileList) Descriptor() ([]byte, []int) {
+	return file_message_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *FileList) GetFiles() []*FileMetadata {
+	if x != nil {
+		return x.Files
+	}
+	return nil
+}
+
+type FileDownloadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	FileName      string                 `protobuf:"bytes,1,opt,name=file_name,json=fileName,proto3" json:"file_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *FileDownloadRequeset) Reset() {
-	*x = FileDownloadRequeset{}
-	mi := &file_pb_message_proto_msgTypes[4]
+func (x *FileDownloadRequest) Reset() {
+	*x = FileDownloadRequest{}
+	mi := &file_message_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *FileDownloadRequeset) String() string {
+func (x *FileDownloadRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*FileDownloadRequeset) ProtoMessage() {}
+func (*FileDownloadRequest) ProtoMessage() {}
 
-func (x *FileDownloadRequeset) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_message_proto_msgTypes[4]
+func (x *FileDownloadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_message_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -403,16 +524,68 @@ func (x *FileDownloadRequeset) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use FileDownloadRequeset.ProtoReflect.Descriptor instead.
-func (*FileDownloadRequeset) Descriptor() ([]byte, []int) {
-	return file_pb_message_proto_rawDescGZIP(), []int{4}
+// Deprecated: Use FileDownloadRequest.ProtoReflect.Descriptor instead.
+func (*FileDownloadRequest) Descriptor() ([]byte, []int) {
+	return file_message_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *FileDownloadRequeset) GetFileName() string {
+func (x *FileDownloadRequest) GetFileName() string {
 	if x != nil {
 		return x.FileName
 	}
 	return ""
+}
+
+type FileDownload struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FileName      string                 `protobuf:"bytes,1,opt,name=file_name,json=fileName,proto3" json:"file_name,omitempty"`
+	FileData      []byte                 `protobuf:"bytes,2,opt,name=file_data,json=fileData,proto3" json:"file_data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileDownload) Reset() {
+	*x = FileDownload{}
+	mi := &file_message_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileDownload) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileDownload) ProtoMessage() {}
+
+func (x *FileDownload) ProtoReflect() protoreflect.Message {
+	mi := &file_message_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileDownload.ProtoReflect.Descriptor instead.
+func (*FileDownload) Descriptor() ([]byte, []int) {
+	return file_message_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *FileDownload) GetFileName() string {
+	if x != nil {
+		return x.FileName
+	}
+	return ""
+}
+
+func (x *FileDownload) GetFileData() []byte {
+	if x != nil {
+		return x.FileData
+	}
+	return nil
 }
 
 type FileUploadRequest struct {
@@ -425,7 +598,7 @@ type FileUploadRequest struct {
 
 func (x *FileUploadRequest) Reset() {
 	*x = FileUploadRequest{}
-	mi := &file_pb_message_proto_msgTypes[5]
+	mi := &file_message_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -437,7 +610,7 @@ func (x *FileUploadRequest) String() string {
 func (*FileUploadRequest) ProtoMessage() {}
 
 func (x *FileUploadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_message_proto_msgTypes[5]
+	mi := &file_message_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -450,7 +623,7 @@ func (x *FileUploadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileUploadRequest.ProtoReflect.Descriptor instead.
 func (*FileUploadRequest) Descriptor() ([]byte, []int) {
-	return file_pb_message_proto_rawDescGZIP(), []int{5}
+	return file_message_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *FileUploadRequest) GetFileName() string {
@@ -467,27 +640,28 @@ func (x *FileUploadRequest) GetFileData() []byte {
 	return nil
 }
 
-type FileListRequest struct {
+type Error struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *FileListRequest) Reset() {
-	*x = FileListRequest{}
-	mi := &file_pb_message_proto_msgTypes[6]
+func (x *Error) Reset() {
+	*x = Error{}
+	mi := &file_message_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *FileListRequest) String() string {
+func (x *Error) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*FileListRequest) ProtoMessage() {}
+func (*Error) ProtoMessage() {}
 
-func (x *FileListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_message_proto_msgTypes[6]
+func (x *Error) ProtoReflect() protoreflect.Message {
+	mi := &file_message_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -498,32 +672,39 @@ func (x *FileListRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use FileListRequest.ProtoReflect.Descriptor instead.
-func (*FileListRequest) Descriptor() ([]byte, []int) {
-	return file_pb_message_proto_rawDescGZIP(), []int{6}
+// Deprecated: Use Error.ProtoReflect.Descriptor instead.
+func (*Error) Descriptor() ([]byte, []int) {
+	return file_message_proto_rawDescGZIP(), []int{9}
 }
 
-type KeyMigrationRequest struct {
+func (x *Error) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type Confirmation struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *KeyMigrationRequest) Reset() {
-	*x = KeyMigrationRequest{}
-	mi := &file_pb_message_proto_msgTypes[7]
+func (x *Confirmation) Reset() {
+	*x = Confirmation{}
+	mi := &file_message_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *KeyMigrationRequest) String() string {
+func (x *Confirmation) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*KeyMigrationRequest) ProtoMessage() {}
+func (*Confirmation) ProtoMessage() {}
 
-func (x *KeyMigrationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_message_proto_msgTypes[7]
+func (x *Confirmation) ProtoReflect() protoreflect.Message {
+	mi := &file_message_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -534,55 +715,12 @@ func (x *KeyMigrationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use KeyMigrationRequest.ProtoReflect.Descriptor instead.
-func (*KeyMigrationRequest) Descriptor() ([]byte, []int) {
-	return file_pb_message_proto_rawDescGZIP(), []int{7}
+// Deprecated: Use Confirmation.ProtoReflect.Descriptor instead.
+func (*Confirmation) Descriptor() ([]byte, []int) {
+	return file_message_proto_rawDescGZIP(), []int{10}
 }
 
-type FileList struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Files         []*FileMetadata        `protobuf:"bytes,1,rep,name=files,proto3" json:"files,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *FileList) Reset() {
-	*x = FileList{}
-	mi := &file_pb_message_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *FileList) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*FileList) ProtoMessage() {}
-
-func (x *FileList) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_message_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use FileList.ProtoReflect.Descriptor instead.
-func (*FileList) Descriptor() ([]byte, []int) {
-	return file_pb_message_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *FileList) GetFiles() []*FileMetadata {
-	if x != nil {
-		return x.Files
-	}
-	return nil
-}
-
+// Basic Types
 type FileMetadata struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -593,7 +731,7 @@ type FileMetadata struct {
 
 func (x *FileMetadata) Reset() {
 	*x = FileMetadata{}
-	mi := &file_pb_message_proto_msgTypes[9]
+	mi := &file_message_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -605,7 +743,7 @@ func (x *FileMetadata) String() string {
 func (*FileMetadata) ProtoMessage() {}
 
 func (x *FileMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_message_proto_msgTypes[9]
+	mi := &file_message_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -618,7 +756,7 @@ func (x *FileMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileMetadata.ProtoReflect.Descriptor instead.
 func (*FileMetadata) Descriptor() ([]byte, []int) {
-	return file_pb_message_proto_rawDescGZIP(), []int{9}
+	return file_message_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *FileMetadata) GetName() string {
@@ -635,248 +773,186 @@ func (x *FileMetadata) GetHash() []byte {
 	return nil
 }
 
-type File struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
+var File_message_proto protoreflect.FileDescriptor
 
-func (x *File) Reset() {
-	*x = File{}
-	mi := &file_pb_message_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *File) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*File) ProtoMessage() {}
-
-func (x *File) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_message_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use File.ProtoReflect.Descriptor instead.
-func (*File) Descriptor() ([]byte, []int) {
-	return file_pb_message_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *File) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *File) GetData() []byte {
-	if x != nil {
-		return x.Data
-	}
-	return nil
-}
-
-type Error struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Error) Reset() {
-	*x = Error{}
-	mi := &file_pb_message_proto_msgTypes[11]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Error) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Error) ProtoMessage() {}
-
-func (x *Error) ProtoReflect() protoreflect.Message {
-	mi := &file_pb_message_proto_msgTypes[11]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Error.ProtoReflect.Descriptor instead.
-func (*Error) Descriptor() ([]byte, []int) {
-	return file_pb_message_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *Error) GetMessage() string {
-	if x != nil {
-		return x.Message
-	}
-	return ""
-}
-
-var File_pb_message_proto protoreflect.FileDescriptor
-
-var file_pb_message_proto_rawDesc = string([]byte{
-	0x0a, 0x10, 0x70, 0x62, 0x2f, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x2e, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x12, 0x05, 0x70, 0x32, 0x70, 0x32, 0x70, 0x22, 0x5e, 0x0a, 0x0e, 0x4d, 0x65, 0x73,
-	0x73, 0x61, 0x67, 0x65, 0x57, 0x72, 0x61, 0x70, 0x70, 0x65, 0x72, 0x12, 0x18, 0x0a, 0x07, 0x6d,
-	0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x07, 0x6d, 0x65,
-	0x73, 0x73, 0x61, 0x67, 0x65, 0x12, 0x1c, 0x0a, 0x09, 0x73, 0x69, 0x67, 0x6e, 0x61, 0x74, 0x75,
-	0x72, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x09, 0x73, 0x69, 0x67, 0x6e, 0x61, 0x74,
-	0x75, 0x72, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x6e, 0x6f, 0x6e, 0x63, 0x65, 0x18, 0x03, 0x20, 0x01,
-	0x28, 0x0c, 0x52, 0x05, 0x6e, 0x6f, 0x6e, 0x63, 0x65, 0x22, 0xd4, 0x02, 0x0a, 0x07, 0x4d, 0x65,
-	0x73, 0x73, 0x61, 0x67, 0x65, 0x12, 0x26, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x18, 0x01, 0x20,
-	0x01, 0x28, 0x0e, 0x32, 0x12, 0x2e, 0x70, 0x32, 0x70, 0x32, 0x70, 0x2e, 0x4d, 0x65, 0x73, 0x73,
-	0x61, 0x67, 0x65, 0x54, 0x79, 0x70, 0x65, 0x52, 0x04, 0x74, 0x79, 0x70, 0x65, 0x12, 0x51, 0x0a,
-	0x15, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x64, 0x6f, 0x77, 0x6e, 0x6c, 0x6f, 0x61, 0x64, 0x5f, 0x72,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x70,
-	0x32, 0x70, 0x32, 0x70, 0x2e, 0x46, 0x69, 0x6c, 0x65, 0x44, 0x6f, 0x77, 0x6e, 0x6c, 0x6f, 0x61,
-	0x64, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x65, 0x74, 0x48, 0x00, 0x52, 0x13, 0x66, 0x69, 0x6c,
-	0x65, 0x44, 0x6f, 0x77, 0x6e, 0x6c, 0x6f, 0x61, 0x64, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x12, 0x4a, 0x0a, 0x13, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x5f,
-	0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x18, 0x2e,
-	0x70, 0x32, 0x70, 0x32, 0x70, 0x2e, 0x46, 0x69, 0x6c, 0x65, 0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64,
-	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x48, 0x00, 0x52, 0x11, 0x66, 0x69, 0x6c, 0x65, 0x55,
-	0x70, 0x6c, 0x6f, 0x61, 0x64, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x2e, 0x0a, 0x09,
-	0x66, 0x69, 0x6c, 0x65, 0x5f, 0x6c, 0x69, 0x73, 0x74, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32,
-	0x0f, 0x2e, 0x70, 0x32, 0x70, 0x32, 0x70, 0x2e, 0x46, 0x69, 0x6c, 0x65, 0x4c, 0x69, 0x73, 0x74,
-	0x48, 0x00, 0x52, 0x08, 0x66, 0x69, 0x6c, 0x65, 0x4c, 0x69, 0x73, 0x74, 0x12, 0x21, 0x0a, 0x04,
-	0x66, 0x69, 0x6c, 0x65, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0b, 0x2e, 0x70, 0x32, 0x70,
-	0x32, 0x70, 0x2e, 0x46, 0x69, 0x6c, 0x65, 0x48, 0x00, 0x52, 0x04, 0x66, 0x69, 0x6c, 0x65, 0x12,
-	0x24, 0x0a, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0c,
-	0x2e, 0x70, 0x32, 0x70, 0x32, 0x70, 0x2e, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x48, 0x00, 0x52, 0x05,
-	0x65, 0x72, 0x72, 0x6f, 0x72, 0x42, 0x09, 0x0a, 0x07, 0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64,
-	0x22, 0x21, 0x0a, 0x07, 0x44, 0x65, 0x63, 0x6c, 0x69, 0x6e, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x72,
-	0x65, 0x61, 0x73, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x72, 0x65, 0x61,
-	0x73, 0x6f, 0x6e, 0x22, 0x28, 0x0a, 0x0c, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x72, 0x6d, 0x61, 0x74,
-	0x69, 0x6f, 0x6e, 0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x22, 0x33, 0x0a,
-	0x14, 0x46, 0x69, 0x6c, 0x65, 0x44, 0x6f, 0x77, 0x6e, 0x6c, 0x6f, 0x61, 0x64, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x65, 0x74, 0x12, 0x1b, 0x0a, 0x09, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x6e, 0x61,
-	0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x66, 0x69, 0x6c, 0x65, 0x4e, 0x61,
-	0x6d, 0x65, 0x22, 0x4d, 0x0a, 0x11, 0x46, 0x69, 0x6c, 0x65, 0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64,
-	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1b, 0x0a, 0x09, 0x66, 0x69, 0x6c, 0x65, 0x5f,
-	0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x66, 0x69, 0x6c, 0x65,
-	0x4e, 0x61, 0x6d, 0x65, 0x12, 0x1b, 0x0a, 0x09, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x64, 0x61, 0x74,
-	0x61, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x08, 0x66, 0x69, 0x6c, 0x65, 0x44, 0x61, 0x74,
-	0x61, 0x22, 0x11, 0x0a, 0x0f, 0x46, 0x69, 0x6c, 0x65, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x22, 0x15, 0x0a, 0x13, 0x4b, 0x65, 0x79, 0x4d, 0x69, 0x67, 0x72, 0x61,
-	0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x35, 0x0a, 0x08, 0x46,
-	0x69, 0x6c, 0x65, 0x4c, 0x69, 0x73, 0x74, 0x12, 0x29, 0x0a, 0x05, 0x66, 0x69, 0x6c, 0x65, 0x73,
-	0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x13, 0x2e, 0x70, 0x32, 0x70, 0x32, 0x70, 0x2e, 0x46,
-	0x69, 0x6c, 0x65, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x52, 0x05, 0x66, 0x69, 0x6c,
-	0x65, 0x73, 0x22, 0x36, 0x0a, 0x0c, 0x46, 0x69, 0x6c, 0x65, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61,
-	0x74, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
-	0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x68, 0x61, 0x73, 0x68, 0x18, 0x02,
-	0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x68, 0x61, 0x73, 0x68, 0x22, 0x2e, 0x0a, 0x04, 0x46, 0x69,
-	0x6c, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
-	0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x02,
-	0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x21, 0x0a, 0x05, 0x45, 0x72,
-	0x72, 0x6f, 0x72, 0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x2a, 0x8e, 0x01,
-	0x0a, 0x0b, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x54, 0x79, 0x70, 0x65, 0x12, 0x19, 0x0a,
-	0x15, 0x46, 0x49, 0x4c, 0x45, 0x5f, 0x44, 0x4f, 0x57, 0x4e, 0x4c, 0x4f, 0x41, 0x44, 0x5f, 0x52,
-	0x45, 0x51, 0x55, 0x45, 0x53, 0x54, 0x10, 0x00, 0x12, 0x17, 0x0a, 0x13, 0x46, 0x49, 0x4c, 0x45,
-	0x5f, 0x55, 0x50, 0x4c, 0x4f, 0x41, 0x44, 0x5f, 0x52, 0x45, 0x51, 0x55, 0x45, 0x53, 0x54, 0x10,
-	0x01, 0x12, 0x15, 0x0a, 0x11, 0x46, 0x49, 0x4c, 0x45, 0x5f, 0x4c, 0x49, 0x53, 0x54, 0x5f, 0x52,
-	0x45, 0x51, 0x55, 0x45, 0x53, 0x54, 0x10, 0x02, 0x12, 0x08, 0x0a, 0x04, 0x46, 0x49, 0x4c, 0x45,
-	0x10, 0x03, 0x12, 0x0d, 0x0a, 0x09, 0x46, 0x49, 0x4c, 0x45, 0x5f, 0x4c, 0x49, 0x53, 0x54, 0x10,
-	0x04, 0x12, 0x10, 0x0a, 0x0c, 0x43, 0x4f, 0x4e, 0x46, 0x49, 0x52, 0x4d, 0x41, 0x54, 0x49, 0x4f,
-	0x4e, 0x10, 0x05, 0x12, 0x09, 0x0a, 0x05, 0x45, 0x52, 0x52, 0x4f, 0x52, 0x10, 0x06, 0x42, 0x1a,
-	0x5a, 0x18, 0x67, 0x6f, 0x2f, 0x74, 0x79, 0x70, 0x65, 0x73, 0x2f, 0x6d, 0x65, 0x73, 0x73, 0x61,
-	0x67, 0x65, 0x3b, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x33,
+var file_message_proto_rawDesc = string([]byte{
+	0x0a, 0x0d, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12,
+	0x05, 0x70, 0x32, 0x70, 0x32, 0x70, 0x1a, 0x0e, 0x73, 0x65, 0x63, 0x75, 0x72, 0x69, 0x74, 0x79,
+	0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0xf9, 0x01, 0x0a, 0x0d, 0x53, 0x69, 0x67, 0x6e, 0x65,
+	0x64, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x12, 0x53, 0x0a, 0x11, 0x65, 0x6e, 0x63, 0x72,
+	0x79, 0x70, 0x74, 0x65, 0x64, 0x5f, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x0e, 0x32, 0x26, 0x2e, 0x70, 0x32, 0x70, 0x32, 0x70, 0x2e, 0x53, 0x69, 0x67, 0x6e,
+	0x65, 0x64, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x2e, 0x45, 0x6e, 0x63, 0x72, 0x79, 0x70,
+	0x74, 0x65, 0x64, 0x5f, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x52, 0x10, 0x65, 0x6e, 0x63,
+	0x72, 0x79, 0x70, 0x74, 0x65, 0x64, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x12, 0x25, 0x0a,
+	0x0e, 0x73, 0x69, 0x67, 0x6e, 0x65, 0x64, 0x5f, 0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0d, 0x73, 0x69, 0x67, 0x6e, 0x65, 0x64, 0x50, 0x61, 0x79,
+	0x6c, 0x6f, 0x61, 0x64, 0x12, 0x23, 0x0a, 0x0d, 0x72, 0x73, 0x61, 0x5f, 0x73, 0x69, 0x67, 0x6e,
+	0x61, 0x74, 0x75, 0x72, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0c, 0x72, 0x73, 0x61,
+	0x53, 0x69, 0x67, 0x6e, 0x61, 0x74, 0x75, 0x72, 0x65, 0x22, 0x47, 0x0a, 0x11, 0x45, 0x6e, 0x63,
+	0x72, 0x79, 0x70, 0x74, 0x65, 0x64, 0x5f, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x12, 0x1d,
+	0x0a, 0x19, 0x45, 0x4e, 0x43, 0x52, 0x59, 0x50, 0x54, 0x45, 0x44, 0x5f, 0x57, 0x52, 0x41, 0x50,
+	0x50, 0x45, 0x44, 0x5f, 0x4d, 0x45, 0x53, 0x53, 0x41, 0x47, 0x45, 0x10, 0x00, 0x12, 0x13, 0x0a,
+	0x0f, 0x57, 0x52, 0x41, 0x50, 0x50, 0x45, 0x44, 0x5f, 0x4d, 0x45, 0x53, 0x53, 0x41, 0x47, 0x45,
+	0x10, 0x01, 0x22, 0x5c, 0x0a, 0x10, 0x45, 0x6e, 0x63, 0x72, 0x79, 0x70, 0x74, 0x65, 0x64, 0x4d,
+	0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x12, 0x2b, 0x0a, 0x11, 0x65, 0x6e, 0x63, 0x72, 0x79, 0x70,
+	0x74, 0x65, 0x64, 0x5f, 0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x0c, 0x52, 0x10, 0x65, 0x6e, 0x63, 0x72, 0x79, 0x70, 0x74, 0x65, 0x64, 0x50, 0x61, 0x79, 0x6c,
+	0x6f, 0x61, 0x64, 0x12, 0x1b, 0x0a, 0x09, 0x61, 0x65, 0x73, 0x5f, 0x6e, 0x6f, 0x6e, 0x63, 0x65,
+	0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x08, 0x61, 0x65, 0x73, 0x4e, 0x6f, 0x6e, 0x63, 0x65,
+	0x22, 0x87, 0x04, 0x0a, 0x0e, 0x57, 0x72, 0x61, 0x70, 0x70, 0x65, 0x64, 0x4d, 0x65, 0x73, 0x73,
+	0x61, 0x67, 0x65, 0x12, 0x39, 0x0a, 0x0c, 0x69, 0x6e, 0x74, 0x72, 0x6f, 0x64, 0x75, 0x63, 0x74,
+	0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x13, 0x2e, 0x70, 0x32, 0x70, 0x32,
+	0x70, 0x2e, 0x49, 0x6e, 0x74, 0x72, 0x6f, 0x64, 0x75, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x48, 0x00,
+	0x52, 0x0c, 0x69, 0x6e, 0x74, 0x72, 0x6f, 0x64, 0x75, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x44,
+	0x0a, 0x11, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x6c, 0x69, 0x73, 0x74, 0x5f, 0x72, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x16, 0x2e, 0x70, 0x32, 0x70, 0x32,
+	0x70, 0x2e, 0x46, 0x69, 0x6c, 0x65, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x48, 0x00, 0x52, 0x0f, 0x66, 0x69, 0x6c, 0x65, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x12, 0x2e, 0x0a, 0x09, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x6c, 0x69, 0x73,
+	0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x70, 0x32, 0x70, 0x32, 0x70, 0x2e,
+	0x46, 0x69, 0x6c, 0x65, 0x4c, 0x69, 0x73, 0x74, 0x48, 0x00, 0x52, 0x08, 0x66, 0x69, 0x6c, 0x65,
+	0x4c, 0x69, 0x73, 0x74, 0x12, 0x50, 0x0a, 0x15, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x64, 0x6f, 0x77,
+	0x6e, 0x6c, 0x6f, 0x61, 0x64, 0x5f, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x18, 0x04, 0x20,
+	0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x70, 0x32, 0x70, 0x32, 0x70, 0x2e, 0x46, 0x69, 0x6c, 0x65,
+	0x44, 0x6f, 0x77, 0x6e, 0x6c, 0x6f, 0x61, 0x64, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x48,
+	0x00, 0x52, 0x13, 0x66, 0x69, 0x6c, 0x65, 0x44, 0x6f, 0x77, 0x6e, 0x6c, 0x6f, 0x61, 0x64, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x3a, 0x0a, 0x0d, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x64,
+	0x6f, 0x77, 0x6e, 0x6c, 0x6f, 0x61, 0x64, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x13, 0x2e,
+	0x70, 0x32, 0x70, 0x32, 0x70, 0x2e, 0x46, 0x69, 0x6c, 0x65, 0x44, 0x6f, 0x77, 0x6e, 0x6c, 0x6f,
+	0x61, 0x64, 0x48, 0x00, 0x52, 0x0c, 0x66, 0x69, 0x6c, 0x65, 0x44, 0x6f, 0x77, 0x6e, 0x6c, 0x6f,
+	0x61, 0x64, 0x12, 0x4a, 0x0a, 0x13, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x75, 0x70, 0x6c, 0x6f, 0x61,
+	0x64, 0x5f, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0b, 0x32,
+	0x18, 0x2e, 0x70, 0x32, 0x70, 0x32, 0x70, 0x2e, 0x46, 0x69, 0x6c, 0x65, 0x55, 0x70, 0x6c, 0x6f,
+	0x61, 0x64, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x48, 0x00, 0x52, 0x11, 0x66, 0x69, 0x6c,
+	0x65, 0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x39,
+	0x0a, 0x0c, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x72, 0x6d, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x08,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x13, 0x2e, 0x70, 0x32, 0x70, 0x32, 0x70, 0x2e, 0x43, 0x6f, 0x6e,
+	0x66, 0x69, 0x72, 0x6d, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x48, 0x00, 0x52, 0x0c, 0x63, 0x6f, 0x6e,
+	0x66, 0x69, 0x72, 0x6d, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x24, 0x0a, 0x05, 0x65, 0x72, 0x72,
+	0x6f, 0x72, 0x18, 0x07, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0c, 0x2e, 0x70, 0x32, 0x70, 0x32, 0x70,
+	0x2e, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x48, 0x00, 0x52, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x42,
+	0x09, 0x0a, 0x07, 0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x22, 0x83, 0x01, 0x0a, 0x0c, 0x49,
+	0x6e, 0x74, 0x72, 0x6f, 0x64, 0x75, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x39, 0x0a, 0x0e, 0x72,
+	0x73, 0x61, 0x5f, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x5f, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x0b, 0x32, 0x13, 0x2e, 0x70, 0x32, 0x70, 0x32, 0x70, 0x2e, 0x52, 0x73, 0x61, 0x50,
+	0x75, 0x62, 0x6c, 0x69, 0x63, 0x4b, 0x65, 0x79, 0x52, 0x0c, 0x72, 0x73, 0x61, 0x50, 0x75, 0x62,
+	0x6c, 0x69, 0x63, 0x4b, 0x65, 0x79, 0x12, 0x38, 0x0a, 0x0d, 0x64, 0x69, 0x66, 0x66, 0x65, 0x5f,
+	0x68, 0x65, 0x6c, 0x6c, 0x6d, 0x61, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x13, 0x2e,
+	0x70, 0x32, 0x70, 0x32, 0x70, 0x2e, 0x44, 0x69, 0x66, 0x66, 0x65, 0x48, 0x65, 0x6c, 0x6c, 0x6d,
+	0x61, 0x6e, 0x52, 0x0c, 0x64, 0x69, 0x66, 0x66, 0x65, 0x48, 0x65, 0x6c, 0x6c, 0x6d, 0x61, 0x6e,
+	0x22, 0x11, 0x0a, 0x0f, 0x46, 0x69, 0x6c, 0x65, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x22, 0x35, 0x0a, 0x08, 0x46, 0x69, 0x6c, 0x65, 0x4c, 0x69, 0x73, 0x74, 0x12,
+	0x29, 0x0a, 0x05, 0x66, 0x69, 0x6c, 0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x13,
+	0x2e, 0x70, 0x32, 0x70, 0x32, 0x70, 0x2e, 0x46, 0x69, 0x6c, 0x65, 0x4d, 0x65, 0x74, 0x61, 0x64,
+	0x61, 0x74, 0x61, 0x52, 0x05, 0x66, 0x69, 0x6c, 0x65, 0x73, 0x22, 0x32, 0x0a, 0x13, 0x46, 0x69,
+	0x6c, 0x65, 0x44, 0x6f, 0x77, 0x6e, 0x6c, 0x6f, 0x61, 0x64, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x12, 0x1b, 0x0a, 0x09, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x66, 0x69, 0x6c, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x22, 0x48,
+	0x0a, 0x0c, 0x46, 0x69, 0x6c, 0x65, 0x44, 0x6f, 0x77, 0x6e, 0x6c, 0x6f, 0x61, 0x64, 0x12, 0x1b,
+	0x0a, 0x09, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x08, 0x66, 0x69, 0x6c, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x1b, 0x0a, 0x09, 0x66,
+	0x69, 0x6c, 0x65, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x08,
+	0x66, 0x69, 0x6c, 0x65, 0x44, 0x61, 0x74, 0x61, 0x22, 0x4d, 0x0a, 0x11, 0x46, 0x69, 0x6c, 0x65,
+	0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1b, 0x0a,
+	0x09, 0x66, 0x69, 0x6c, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x08, 0x66, 0x69, 0x6c, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x1b, 0x0a, 0x09, 0x66, 0x69,
+	0x6c, 0x65, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x08, 0x66,
+	0x69, 0x6c, 0x65, 0x44, 0x61, 0x74, 0x61, 0x22, 0x21, 0x0a, 0x05, 0x45, 0x72, 0x72, 0x6f, 0x72,
+	0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x22, 0x0e, 0x0a, 0x0c, 0x43, 0x6f,
+	0x6e, 0x66, 0x69, 0x72, 0x6d, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x22, 0x36, 0x0a, 0x0c, 0x46, 0x69,
+	0x6c, 0x65, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61,
+	0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x12,
+	0x0a, 0x04, 0x68, 0x61, 0x73, 0x68, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x68, 0x61,
+	0x73, 0x68, 0x42, 0x2b, 0x5a, 0x29, 0x6e, 0x61, 0x67, 0x65, 0x6c, 0x62, 0x72, 0x6f, 0x73, 0x2e,
+	0x63, 0x6f, 0x6d, 0x2f, 0x70, 0x32, 0x70, 0x32, 0x70, 0x2f, 0x74, 0x79, 0x70, 0x65, 0x73, 0x2f,
+	0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x3b, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x62,
+	0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 })
 
 var (
-	file_pb_message_proto_rawDescOnce sync.Once
-	file_pb_message_proto_rawDescData []byte
+	file_message_proto_rawDescOnce sync.Once
+	file_message_proto_rawDescData []byte
 )
 
-func file_pb_message_proto_rawDescGZIP() []byte {
-	file_pb_message_proto_rawDescOnce.Do(func() {
-		file_pb_message_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_pb_message_proto_rawDesc), len(file_pb_message_proto_rawDesc)))
+func file_message_proto_rawDescGZIP() []byte {
+	file_message_proto_rawDescOnce.Do(func() {
+		file_message_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_message_proto_rawDesc), len(file_message_proto_rawDesc)))
 	})
-	return file_pb_message_proto_rawDescData
+	return file_message_proto_rawDescData
 }
 
-var file_pb_message_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_pb_message_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
-var file_pb_message_proto_goTypes = []any{
-	(MessageType)(0),             // 0: p2p2p.MessageType
-	(*MessageWrapper)(nil),       // 1: p2p2p.MessageWrapper
-	(*Message)(nil),              // 2: p2p2p.Message
-	(*Decline)(nil),              // 3: p2p2p.Decline
-	(*Confirmation)(nil),         // 4: p2p2p.Confirmation
-	(*FileDownloadRequeset)(nil), // 5: p2p2p.FileDownloadRequeset
-	(*FileUploadRequest)(nil),    // 6: p2p2p.FileUploadRequest
-	(*FileListRequest)(nil),      // 7: p2p2p.FileListRequest
-	(*KeyMigrationRequest)(nil),  // 8: p2p2p.KeyMigrationRequest
-	(*FileList)(nil),             // 9: p2p2p.FileList
-	(*FileMetadata)(nil),         // 10: p2p2p.FileMetadata
-	(*File)(nil),                 // 11: p2p2p.File
-	(*Error)(nil),                // 12: p2p2p.Error
+var file_message_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_message_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_message_proto_goTypes = []any{
+	(SignedMessage_Encrypted_Message)(0), // 0: p2p2p.SignedMessage.Encrypted_Message
+	(*SignedMessage)(nil),                // 1: p2p2p.SignedMessage
+	(*EncryptedMessage)(nil),             // 2: p2p2p.EncryptedMessage
+	(*WrappedMessage)(nil),               // 3: p2p2p.WrappedMessage
+	(*Introduction)(nil),                 // 4: p2p2p.Introduction
+	(*FileListRequest)(nil),              // 5: p2p2p.FileListRequest
+	(*FileList)(nil),                     // 6: p2p2p.FileList
+	(*FileDownloadRequest)(nil),          // 7: p2p2p.FileDownloadRequest
+	(*FileDownload)(nil),                 // 8: p2p2p.FileDownload
+	(*FileUploadRequest)(nil),            // 9: p2p2p.FileUploadRequest
+	(*Error)(nil),                        // 10: p2p2p.Error
+	(*Confirmation)(nil),                 // 11: p2p2p.Confirmation
+	(*FileMetadata)(nil),                 // 12: p2p2p.FileMetadata
+	(*security.RsaPublicKey)(nil),        // 13: p2p2p.RsaPublicKey
+	(*security.DiffeHellman)(nil),        // 14: p2p2p.DiffeHellman
 }
-var file_pb_message_proto_depIdxs = []int32{
-	0,  // 0: p2p2p.Message.type:type_name -> p2p2p.MessageType
-	5,  // 1: p2p2p.Message.file_download_request:type_name -> p2p2p.FileDownloadRequeset
-	6,  // 2: p2p2p.Message.file_upload_request:type_name -> p2p2p.FileUploadRequest
-	9,  // 3: p2p2p.Message.file_list:type_name -> p2p2p.FileList
-	11, // 4: p2p2p.Message.file:type_name -> p2p2p.File
-	12, // 5: p2p2p.Message.error:type_name -> p2p2p.Error
-	10, // 6: p2p2p.FileList.files:type_name -> p2p2p.FileMetadata
-	7,  // [7:7] is the sub-list for method output_type
-	7,  // [7:7] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+var file_message_proto_depIdxs = []int32{
+	0,  // 0: p2p2p.SignedMessage.encrypted_message:type_name -> p2p2p.SignedMessage.Encrypted_Message
+	4,  // 1: p2p2p.WrappedMessage.introduction:type_name -> p2p2p.Introduction
+	5,  // 2: p2p2p.WrappedMessage.file_list_request:type_name -> p2p2p.FileListRequest
+	6,  // 3: p2p2p.WrappedMessage.file_list:type_name -> p2p2p.FileList
+	7,  // 4: p2p2p.WrappedMessage.file_download_request:type_name -> p2p2p.FileDownloadRequest
+	8,  // 5: p2p2p.WrappedMessage.file_download:type_name -> p2p2p.FileDownload
+	9,  // 6: p2p2p.WrappedMessage.file_upload_request:type_name -> p2p2p.FileUploadRequest
+	11, // 7: p2p2p.WrappedMessage.confirmation:type_name -> p2p2p.Confirmation
+	10, // 8: p2p2p.WrappedMessage.error:type_name -> p2p2p.Error
+	13, // 9: p2p2p.Introduction.rsa_public_key:type_name -> p2p2p.RsaPublicKey
+	14, // 10: p2p2p.Introduction.diffe_hellman:type_name -> p2p2p.DiffeHellman
+	12, // 11: p2p2p.FileList.files:type_name -> p2p2p.FileMetadata
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
-func init() { file_pb_message_proto_init() }
-func file_pb_message_proto_init() {
-	if File_pb_message_proto != nil {
+func init() { file_message_proto_init() }
+func file_message_proto_init() {
+	if File_message_proto != nil {
 		return
 	}
-	file_pb_message_proto_msgTypes[1].OneofWrappers = []any{
-		(*Message_FileDownloadRequest)(nil),
-		(*Message_FileUploadRequest)(nil),
-		(*Message_FileList)(nil),
-		(*Message_File)(nil),
-		(*Message_Error)(nil),
+	file_message_proto_msgTypes[2].OneofWrappers = []any{
+		(*WrappedMessage_Introduction)(nil),
+		(*WrappedMessage_FileListRequest)(nil),
+		(*WrappedMessage_FileList)(nil),
+		(*WrappedMessage_FileDownloadRequest)(nil),
+		(*WrappedMessage_FileDownload)(nil),
+		(*WrappedMessage_FileUploadRequest)(nil),
+		(*WrappedMessage_Confirmation)(nil),
+		(*WrappedMessage_Error)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pb_message_proto_rawDesc), len(file_pb_message_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_message_proto_rawDesc), len(file_message_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_pb_message_proto_goTypes,
-		DependencyIndexes: file_pb_message_proto_depIdxs,
-		EnumInfos:         file_pb_message_proto_enumTypes,
-		MessageInfos:      file_pb_message_proto_msgTypes,
+		GoTypes:           file_message_proto_goTypes,
+		DependencyIndexes: file_message_proto_depIdxs,
+		EnumInfos:         file_message_proto_enumTypes,
+		MessageInfos:      file_message_proto_msgTypes,
 	}.Build()
-	File_pb_message_proto = out.File
-	file_pb_message_proto_goTypes = nil
-	file_pb_message_proto_depIdxs = nil
+	File_message_proto = out.File
+	file_message_proto_goTypes = nil
+	file_message_proto_depIdxs = nil
 }

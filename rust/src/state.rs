@@ -5,16 +5,17 @@ use rsa::pkcs1v15::{Signature, SigningKey, VerifyingKey};
 use rsa::rand_core::{OsRng, RngCore};
 use rsa::sha2::{Digest, Sha256};
 use rsa::signature::{SignerMut, Verifier};
+use rsa::traits::PublicKeyParts;
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::fs;
 use std::io::{self, Read, Write};
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Mutex, RwLock};
 use std::thread::JoinHandle;
+use std::{fmt, fs};
 use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
 
 use crate::pb;
@@ -25,6 +26,8 @@ lazy_static! {
         files: HashMap::new()
     });
     static ref CLIENT_DATA: RwLock<HashMap<SocketAddr, RwLock<ClientData>>> =
+        RwLock::new(HashMap::new());
+    static ref NICKNAME_TO_SOCKET: RwLock<HashMap<String, SocketAddr>> =
         RwLock::new(HashMap::new());
     static ref OUTGOING_MESSAGES: RwLock<Vec<(SocketAddr, pb::WrappedMessage)>> =
         RwLock::new(Vec::new());
@@ -66,10 +69,19 @@ pub enum FileDirection {
     DOWNLOAD = 2,
 }
 
+impl fmt::Display for FileDirection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FileDirection::UPLOAD => write!(f, "UPLOAD"),
+            FileDirection::DOWNLOAD => write!(f, "DOWNLOAD"),
+        }
+    }
+}
+
 pub struct ClientData {
-    // hostname: hostname
+    nickname: Option<String>,
     connections: u16,
-    rsa_public: Option<VerifyingKey<Sha256>>,
+    rsa_public: Option<RsaPublicKey>,
     aes_ephemeral: Option<EphemeralSecret>,
     aes_public: Option<PublicKey>,
     aes_shared: Option<SharedSecret>,
@@ -85,6 +97,13 @@ pub struct AesEncrypted {
 pub struct EncryptionModes {
     pub use_rsa: bool,
     pub use_aes: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct PersistentClientInfo {
+    nickname: String,
+    rsa_public_der: Option<RsaPublicKey>,
+    file_map: Option<HashMap<String, File>>,
 }
 
 pub fn init_app_data() {
@@ -133,6 +152,51 @@ pub fn save_app_data_to_disk(password: &str) -> io::Result<()> {
         file.write_all(&aes_encrypted.nonce)?;
         file.write_all(&aes_encrypted.ciphertext)?;
         log::info!("Saved filesystem.bin");
+    }
+    {
+        // Save client file data with RSA public key, FileList, Nickname to a file
+        let mut persistent_clients: Vec<PersistentClientInfo> = Vec::new();
+
+        let client_data_map = CLIENT_DATA.read().unwrap();
+        let nickname_to_socket_map = NICKNAME_TO_SOCKET.read().unwrap();
+
+        for (nickname, socket_addr) in nickname_to_socket_map.iter() {
+            if let Some(client_data_lock) = client_data_map.get(socket_addr) {
+                let client_data = client_data_lock.read().unwrap();
+
+                let info = PersistentClientInfo {
+                    nickname: nickname.clone(),
+                    rsa_public_der: client_data.rsa_public.clone(),
+                    file_map: client_data.file_map.clone(),
+                };
+
+                persistent_clients.push(info);
+            } else {
+                log::warn!(
+                    "Client data not found for nickname {} which maps to socket {:?}",
+                    nickname,
+                    socket_addr
+                );
+            }
+        }
+        let data = serde_json::to_vec(&persistent_clients).map_err(|e| {
+            log::error!("Failed to serialize client data vector: {}", e);
+            io::Error::new(io::ErrorKind::Other, format!("Serialization failed: {}", e))
+        })?;
+
+        let mut salt = [0u8; 16];
+        OsRng.fill_bytes(&mut salt);
+
+        let aes_encrypted = encrypt_password_data(&data, password, &salt).map_err(|e| {
+            log::error!("Failed to encrypt client data vector: {}", e);
+            io::Error::new(io::ErrorKind::Other, format!("Encryption failed: {}", e))
+        })?;
+
+        let mut file = fs::File::create("./clientdata.bin")?;
+        file.write_all(&salt)?;
+        file.write_all(&aes_encrypted.nonce)?;
+        file.write_all(&aes_encrypted.ciphertext)?;
+        log::info!("Saved clientdata.bin (as Vec<PersistentClientInfo>)");
     }
     Ok(())
 }
@@ -189,6 +253,50 @@ pub fn load_app_data_from_disk(password: &str) -> io::Result<()> {
 
         let mut file_system = FILE_SYSTEM.write().unwrap();
         *file_system = loaded_file_system;
+    }
+    {
+        // Load client data file with RSA public key, nickname, and IP range
+        // Use this IP range (test block) 192.0.2.0/24
+        let mut file = fs::File::open("./clientdata.bin")?;
+        let mut salt = [0u8; 16];
+        let mut nonce = [0u8; 12];
+        let mut ciphertext = Vec::new();
+
+        file.read_exact(&mut salt)?;
+        file.read_exact(&mut nonce)?;
+        file.read_to_end(&mut ciphertext)?;
+        log::info!("Loaded clientdata.bin");
+
+        let decrypted_data = decrypt_password_data(&ciphertext, &nonce, password, &salt);
+        if decrypted_data.is_err() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Invalid password",
+            ));
+        }
+        log::info!("Decrypted clientdata.bin successfully");
+
+        let loaded_client_data: Vec<PersistentClientInfo> =
+            serde_json::from_slice(&decrypted_data.unwrap())?;
+        log::info!("loaded_client_data: {:?}", loaded_client_data);
+
+        for (i, client_info) in loaded_client_data.into_iter().enumerate() {
+            let ip_bytes = u32::from(Ipv4Addr::new(192, 0, 2, 0));
+            let generated_ip = Ipv4Addr::from(ip_bytes.checked_add(i as u32).unwrap());
+            let socket_addr = SocketAddr::new(IpAddr::V4(generated_ip), 5200);
+
+            init_client_data(socket_addr);
+            set_client_nickname(socket_addr, client_info.nickname.clone()).unwrap();
+
+            if let Some(rsa_public) = client_info.rsa_public_der {
+                set_client_rsa_key(socket_addr, rsa_public);
+            }
+
+            if let Some(file_map) = client_info.file_map {
+                set_client_file_list(socket_addr, file_map);
+            }
+        }
+        log::info!("Loaded client data successfully");
     }
 
     Ok(())
@@ -366,6 +474,157 @@ pub fn decrement_client_connections(socket_addr: SocketAddr) -> u16 {
     client_data.connections
 }
 
+pub fn set_client_nickname(socket_addr: SocketAddr, nickname: String) -> Result<(), ()> {
+    init_client_data(socket_addr);
+
+    {
+        let nickname_to_socket_map = NICKNAME_TO_SOCKET.read().unwrap();
+        if nickname_to_socket_map.contains_key(&nickname) {
+            return Err(());
+        }
+    }
+    {
+        let client_data_map = CLIENT_DATA.read().unwrap();
+        let mut client_data = client_data_map.get(&socket_addr).unwrap().write().unwrap();
+        client_data.nickname = Some(nickname.clone());
+    }
+    {
+        let mut nickname_to_socket_map = NICKNAME_TO_SOCKET.write().unwrap();
+        nickname_to_socket_map.insert(nickname.clone(), socket_addr);
+    }
+    Ok(())
+}
+
+pub fn set_client_nickname_randomly(socket_addr: SocketAddr) {
+    let mut rng = OsRng;
+    let mut nickname = String::with_capacity(8);
+    for _ in 0..6 {
+        let random_val = rng.next_u32();
+        let offset = random_val % 26;
+        let c = (b'a' + offset as u8) as char;
+        nickname.push(c);
+    }
+    set_client_nickname(socket_addr, nickname).unwrap();
+}
+
+pub fn change_client_nickname(old_nickname: String, new_nickname: String) -> Result<(), ()> {
+    // Ensure old name is valid and save socket
+    let socket_addr = match get_socket_from_nickname(&old_nickname) {
+        Some(socket_addr) => socket_addr,
+        None => return Err(()),
+    };
+
+    // Check new nickname is free
+    if get_socket_from_nickname(&new_nickname).is_some() {
+        return Err(());
+    }
+    {
+        let client_data_map = CLIENT_DATA.read().unwrap();
+        let mut client_data = client_data_map.get(&socket_addr).unwrap().write().unwrap();
+        client_data.nickname = Some(new_nickname.clone());
+    }
+    {
+        let mut nickname_to_socket_map = NICKNAME_TO_SOCKET.write().unwrap();
+        nickname_to_socket_map.remove(&old_nickname);
+        nickname_to_socket_map.insert(new_nickname.clone(), socket_addr);
+    }
+    Ok(())
+}
+
+pub fn get_nickname_from_socket(socket_addr: SocketAddr) -> Option<String> {
+    let client_data_map = CLIENT_DATA.read().unwrap();
+    let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
+
+    client_data.nickname.clone()
+}
+
+pub fn get_socket_from_nickname(nickname: &str) -> Option<SocketAddr> {
+    let nickname_to_socket_map = NICKNAME_TO_SOCKET.read().unwrap();
+    log::info!(
+        "Mapped {} to {:?}",
+        nickname,
+        nickname_to_socket_map.get(nickname)
+    );
+    nickname_to_socket_map.get(nickname).cloned()
+}
+
+pub fn try_migrate_client_socket(
+    rsa_public_key: &RsaPublicKey,
+    new_socket_addr: SocketAddr,
+) -> Result<(), ()> {
+    let mut client_data_map = CLIENT_DATA.write().unwrap();
+    let mut nickname_to_socket_map = NICKNAME_TO_SOCKET.write().unwrap();
+
+    let mut old_socket_addr_option: Option<SocketAddr> = None;
+    let mut nickname_option: Option<String> = None;
+
+    log::info!("Searching for old client with RSA key");
+
+    for (socket_addr, client_data_lock) in client_data_map.iter() {
+        let client_data = client_data_lock.read().unwrap();
+        if client_data.rsa_public.as_ref() == Some(rsa_public_key) {
+            if client_data.connections > 0 {
+                log::info!(
+                    "Duplicate RSA keys? Tried to migrate but the RSA key already has a connection"
+                );
+            }
+        }
+        old_socket_addr_option = Some(*socket_addr);
+        nickname_option = client_data.nickname.clone();
+        break;
+    }
+
+    if old_socket_addr_option.is_none() || nickname_option.is_none() {
+        log::info!("Didn't find existing RSA key");
+        return Err(());
+    }
+    let old_socket_addr = old_socket_addr_option.unwrap();
+    let nickname = nickname_option.unwrap();
+
+    let client_data = client_data_map.remove(&old_socket_addr).unwrap();
+    nickname_to_socket_map.remove(&nickname);
+
+    log::info!(
+        "Migrating client '{}' from fake address {} to new address {}",
+        nickname,
+        old_socket_addr,
+        new_socket_addr
+    );
+
+    if let Some(existing_lock) = client_data_map.insert(new_socket_addr, client_data) {
+        match existing_lock.read() {
+            Ok(existing_data) => {
+                log::info!(
+                    "Replaced existing client data at {} (Nickname: {:?}) during migration of '{}'.",
+                    new_socket_addr,
+                    existing_data.nickname,
+                    nickname
+                );
+                if let Some(replaced_nickname) = existing_data.nickname.as_ref() {
+                    nickname_to_socket_map.remove(replaced_nickname);
+                }
+            }
+            Err(_) => {
+                log::warn!(
+                    "Replaced existing client data at {} (could not read data) during migration of '{}'.",
+                    new_socket_addr,
+                    nickname
+                );
+            }
+        }
+    }
+
+    nickname_to_socket_map.insert(nickname.clone(), new_socket_addr);
+
+    log::info!(
+        "Successfully migrated client '{}' to {}",
+        nickname,
+        new_socket_addr
+    );
+
+    Ok(())
+}
+
 pub fn set_client_file_list(socket_addr: SocketAddr, file_map: HashMap<String, File>) {
     let client_data_map = CLIENT_DATA.read().unwrap();
     let mut client_data = client_data_map.get(&socket_addr).unwrap().write().unwrap();
@@ -411,6 +670,7 @@ pub fn init_client_data(socket_addr: SocketAddr) {
     let ephemeral_secret = EphemeralSecret::random_from_rng(OsRng);
     let public_key = PublicKey::from(&ephemeral_secret);
     let client_data = ClientData {
+        nickname: None,
         connections: 0,
         rsa_public: None,
         aes_ephemeral: Some(ephemeral_secret),
@@ -434,15 +694,16 @@ pub fn remove_client_data(socket_addr: SocketAddr) {
 
 pub fn print_clients() {
     let client_data_map = CLIENT_DATA.read().unwrap();
-    println!("socket, connections, rsa, aes");
+    println!("nickname, connections, rsa used, aes used, socket");
     for (socket_addr, client_data) in client_data_map.iter() {
         let client_data = client_data.read().unwrap();
         println!(
-            "{} {} {:?} {:?}",
-            socket_addr,
+            "{} {} {} {:?} {:?}",
+            client_data.nickname.clone().unwrap(),
             client_data.connections,
             client_data.rsa_public.is_some(),
             client_data.aes_shared.is_some(),
+            socket_addr,
         );
     }
 }
@@ -486,7 +747,7 @@ pub fn get_client_encryption_modes(socket_addr: SocketAddr) -> EncryptionModes {
     }
 }
 
-pub fn get_client_rsa_key(socket_addr: SocketAddr) -> Option<VerifyingKey<Sha256>> {
+pub fn get_client_rsa_key(socket_addr: SocketAddr) -> Option<RsaPublicKey> {
     {
         let client_data_map = CLIENT_DATA.read().unwrap();
         let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
@@ -494,7 +755,7 @@ pub fn get_client_rsa_key(socket_addr: SocketAddr) -> Option<VerifyingKey<Sha256
     }
 }
 
-pub fn set_client_rsa_key(socket_addr: SocketAddr, rsa_public: VerifyingKey<Sha256>) {
+pub fn set_client_rsa_key(socket_addr: SocketAddr, rsa_public: RsaPublicKey) {
     {
         let client_data_map = CLIENT_DATA.read().unwrap();
         let mut client_data = client_data_map.get(&socket_addr).unwrap().write().unwrap();
@@ -510,7 +771,8 @@ pub fn verify_client_signature(
     let client_data_map = CLIENT_DATA.read().unwrap();
     let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
 
-    let verifying_key = client_data.rsa_public.as_ref().unwrap();
+    let public_key = client_data.rsa_public.clone().unwrap();
+    let verifying_key = rsa::pkcs1v15::VerifyingKey::<Sha256>::new(public_key);
 
     verifying_key.verify(msg, signature)
 }

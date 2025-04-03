@@ -29,7 +29,6 @@ impl TcpServer {
             }
             match self.listener.accept() {
                 Ok((stream, _addr)) => {
-                    state::init_client_data(stream.peer_addr().unwrap());
                     let handle = thread::spawn(move || {
                         handle_client(stream);
                     });
@@ -52,7 +51,6 @@ pub fn connect(socket_addr: SocketAddr) {
     // Outgoing connections
     log::info!("Initiating connection to {}", socket_addr);
     let stream = TcpStream::connect(socket_addr);
-    state::init_client_data(socket_addr);
 
     match stream {
         Ok(stream) => {
@@ -78,9 +76,18 @@ fn handle_client(mut stream: TcpStream) {
 
     let socket_addr = stream.peer_addr().expect("Failed to get client address");
 
+    state::init_client_data(socket_addr);
+    let nickname = match state::get_nickname_from_socket(socket_addr) {
+        Some(nickname) => nickname,
+        None => {
+            state::set_client_nickname_randomly(socket_addr);
+            state::get_nickname_from_socket(socket_addr).unwrap()
+        }
+    };
+
     state::increment_client_connections(socket_addr);
 
-    println!("\nClient connected: {}", socket_addr);
+    println!("\nClient connected: {} {}", nickname, socket_addr);
     println!(">> ");
 
     let mut use_client_encryption;

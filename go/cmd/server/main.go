@@ -88,12 +88,12 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
-	switch msg.GetType() {
-	case pb.MessageType_FILE_LIST_REQUEST:
+	switch msg.Payload.(type) {
+	case *pb.WrappedMessage_FileListRequest:
 		listFiles(secureConn)
-	case pb.MessageType_FILE_DOWNLOAD_REQUEST:
+	case *pb.WrappedMessage_FileDownloadRequest:
 		sendFile(secureConn, msg.GetFileDownloadRequest().FileName)
-	case pb.MessageType_FILE_UPLOAD_REQUEST:
+	case *pb.WrappedMessage_FileUploadRequest:
 		receiveFile(secureConn, msg.GetFileUploadRequest())
 	}
 }
@@ -124,7 +124,7 @@ func sendFile(conn *security.SecConn, fileName string) {
 		return
 	}
 
-	conn.Send(message.FileData(plaintext))
+	conn.Send(message.FileData(fileName, plaintext))
 }
 
 func receiveFile(conn *security.SecConn, uploadFileReq *pb.FileUploadRequest) {
