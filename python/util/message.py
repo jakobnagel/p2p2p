@@ -1,10 +1,10 @@
 from os import listdir, getcwd
 from os.path import isfile, join
 import message_pb2
-import random
 from util.hash import hash_data
 from util.encryption import encrypt, decrypt
 from util.rsa import get_RSA_signature, verify_RSA_signature
+from util.local import complete_file_download
 
 def create_file_list_request(local_rsa_priv_key, aes_key):
     payload = message_pb2.FileListRequest()
@@ -68,17 +68,23 @@ def create_file_download(local_rsa_priv_key, aes_key, fname):
     signed_msg_bytes = build_and_serialize_signed_msg(local_rsa_priv_key, aes_key, wrapped_msg)
     return signed_msg_bytes
 
-def complete_file_download(fname, fdata):
-    full_fpath = join(join(getcwd(), "files"), fname)
-    if isfile(full_fpath):
-        new_fname = fname + str(random.randint(0,100000))
-        print(f"File {fname} already exists. Saving new file as {new_fname}")
-        complete_file_download(new_fname, fdata)
-    else:
-        with open(full_fpath, 'wb') as f:
-            f.write(fdata)
-        print(f"File {fname} saved.\n")
+def create_file_upload_request(local_rsa_priv_key, aes_key):
+    return create_file_upload_request_EX(local_rsa_priv_key, aes_key, pick_local_file())
 
+def create_file_upload_request_EX(local_rsa_priv_key, aes_key, fname):
+    file_upload_request = message_pb2.FileUploadRequest()
+    file_upload_request.file_name = fname
+
+
+    full_fpath = join(join(getcwd(), "files"), fname)
+    with open(full_fpath, 'rb') as f:
+        file_upload_request.file_data = f.read()
+
+    wrapped_msg = message_pb2.WrappedMessage()
+    wrapped_msg.file_upload_request.CopyFrom(file_upload_request)
+
+    signed_msg_bytes = build_and_serialize_signed_msg(local_rsa_priv_key, aes_key, wrapped_msg)
+    return signed_msg_bytes
 
 def consume_message(local_rsa_priv_key, peer_rsa_pub_key, aes_key, serialized_msg):
     received_msg = message_pb2.SignedMessage()
@@ -155,4 +161,27 @@ def verify_incoming_payload(key, sig, payload):
 def pick_peer_file():
     fname = input("What file would you like to request?\n")
     return fname
+
+def pick_local_file():
+    fpath = join(getcwd(), "files")
+    files = [f for f in listdir(fpath) if isfile(join(fpath, f))]
+    file_list = []
+    for file in files:
+        fpath = join(join(getcwd(), "files"), file)
+        with open(fpath, 'rb') as f:
+            file_list.append((file, hash_data(f.read())))
+
+    choice = -1
+    while choice not in range(len(file_list)):
+        for i, x in enumerate(file_list):
+            print(f"{i}: {x[0]} \t hash: {x[1]}")
+
+        try:
+            choice = int(input("Select a file by entering the corresponding number. \n"))
+            if choice not in range(len(file_list)):
+                print("Invalid number")
+        except ValueError:
+            print("Invalid number")
+
+    return file_list[choice][0]
 

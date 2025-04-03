@@ -3,4 +3,6 @@ cryptography==44.0.2
 ifaddr==0.2.0
 protobuf==6.30.1
 pycparser==2.22
+pycrypto==2.6.1
+pycryptodomex==3.22.0
 zeroconf==0.145.1
