@@ -36,8 +36,13 @@ pub fn handle_message(
                 public_key,
             );
 
-            let verifying_key = rsa::pkcs1v15::VerifyingKey::<Sha256>::new(public_key);
-            state::set_client_rsa_key(socket_addr, verifying_key);
+            match state::try_migrate_client_socket(&public_key, socket_addr) {
+                Ok(()) => log::info!("Migrated existing client"),
+                Err(()) => log::info!("Didn't migrate"),
+            }
+
+            // let verifying_key = rsa::pkcs1v15::VerifyingKey::<Sha256>::new(public_key);
+            state::set_client_rsa_key(socket_addr, public_key);
 
             if state::get_client_encryption_modes(socket_addr).use_aes {
                 log::info!(
