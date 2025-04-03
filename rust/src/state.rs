@@ -196,7 +196,7 @@ pub fn save_app_data_to_disk(password: &str) -> io::Result<()> {
         file.write_all(&salt)?;
         file.write_all(&aes_encrypted.nonce)?;
         file.write_all(&aes_encrypted.ciphertext)?;
-        log::info!("Saved clientdata.bin (as Vec<PersistentClientInfo>)");
+        log::info!("Saved clientdata.bin");
     }
     Ok(())
 }
@@ -561,6 +561,9 @@ pub fn try_migrate_client_socket(
     log::info!("Searching for old client with RSA key");
 
     for (socket_addr, client_data_lock) in client_data_map.iter() {
+        if *socket_addr == new_socket_addr {
+            continue;
+        }
         let client_data = client_data_lock.read().unwrap();
         if client_data.rsa_public.as_ref() == Some(rsa_public_key) {
             if client_data.connections > 0 {
@@ -575,7 +578,7 @@ pub fn try_migrate_client_socket(
     }
 
     if old_socket_addr_option.is_none() || nickname_option.is_none() {
-        log::info!("Didn't find existing RSA key");
+        log::info!("Didn't find existing RSA key with different socket address");
         return Err(());
     }
     let old_socket_addr = old_socket_addr_option.unwrap();
@@ -699,7 +702,11 @@ pub fn print_clients() {
         let client_data = client_data.read().unwrap();
         println!(
             "{} {} {} {:?} {:?}",
-            client_data.nickname.clone().unwrap(),
+            if client_data.nickname.is_none() {
+                "n/a".to_string()
+            } else {
+                client_data.nickname.clone().unwrap()
+            },
             client_data.connections,
             client_data.rsa_public.is_some(),
             client_data.aes_shared.is_some(),
