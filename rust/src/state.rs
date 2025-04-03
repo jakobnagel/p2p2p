@@ -595,14 +595,23 @@ pub fn try_migrate_client_socket(
     );
 
     let old_client = client_data_map.get(&new_socket_addr).unwrap();
-    let aes_shared: Option<SharedSecret>;
+    let connections;
+    let aes_ephemeral;
+    let aes_shared;
+    let aes_public;
     {
         let mut client_data_lock = old_client.write().unwrap();
+        connections = client_data_lock.connections;
+        aes_ephemeral = Option::take(&mut client_data_lock.aes_ephemeral);
         aes_shared = Option::take(&mut client_data_lock.aes_shared);
+        aes_public = Option::take(&mut client_data_lock.aes_public);
     }
     {
         let mut client_data_lock = client_data.write().unwrap();
+        client_data_lock.connections = connections;
+        client_data_lock.aes_ephemeral = aes_ephemeral;
         client_data_lock.aes_shared = aes_shared;
+        client_data_lock.aes_public = aes_public;
     }
 
     if let Some(old_client) = client_data_map.insert(new_socket_addr, client_data) {

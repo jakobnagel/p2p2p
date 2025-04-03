@@ -153,6 +153,7 @@ pub fn handle_message(
                     });
                 }
             };
+            let nickname = state::get_nickname_from_socket(socket_addr).unwrap();
 
             log::info!(
                 "[{}]: extracted file name and associated hash {} {}",
@@ -177,7 +178,7 @@ pub fn handle_message(
                     "[{}]: Incoming request to download {}, type {}",
                     socket_addr,
                     file_name,
-                    format!("approve {} download {}", socket_addr, file_name)
+                    format!("approve {} download {}", nickname, file_name)
                         .yellow()
                         .bold()
                 );
@@ -297,6 +298,7 @@ pub fn handle_message(
             let file_name = file_upload_request.file_name.clone();
             let file_data = file_upload_request.file_data.clone();
             let file_hash = state::hash_file(&file_data);
+            let nickname = state::get_nickname_from_socket(socket_addr).unwrap();
 
             log::info!(
                 "[{}]: extracted file name and associated hash {} {}",
@@ -321,7 +323,7 @@ pub fn handle_message(
                     "[{}]: Incoming request to upload {}, type {}",
                     socket_addr,
                     file_name,
-                    format!("approve {} upload {}", socket_addr, file_name)
+                    format!("approve {} upload {}", nickname, file_name)
                         .yellow()
                         .bold()
                 );
