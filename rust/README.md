@@ -2,6 +2,9 @@
 
 This project is a command-line application for sharing files directly with other peers on the local network using a custom TCP-based protocol with encryption and peer discovery via mDNS.
 
+[Demo of file transfer](demo1.webm)
+[Demo of getting file from offline peer](demo2.webm)
+
 ## How to Use
 
 1.  **Start the application:** `cargo run` (consider setting `RUST_LOG=info` to see whats going on)
