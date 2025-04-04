@@ -425,7 +425,13 @@ pub fn unsign_decrypt_message(
         // If Bob's RSA signature is known, verify the signature
         let msg = &signed_message.signed_payload;
         let signature: Signature = Signature::try_from(signed_message.rsa_signature.as_slice())?;
-        state::verify_client_signature(socket_addr, msg, &signature).expect("Invalid signature");
+        match state::verify_client_signature(socket_addr, msg, &signature) {
+            Ok(_) => {}
+            Err(e) => {
+                log::error!("[{}]: Signature is invalid: {}", socket_addr, e);
+                return Err(e.into());
+            }
+        }
         log::info!("[{}]: Signature is valid", socket_addr);
     }
 
@@ -448,18 +454,19 @@ pub fn unsign_decrypt_message(
                 socket_addr
             );
 
-            let decrypted_payload = state::decrypt_aes_message(
+            let decrypted_payload = match state::decrypt_aes_message(
                 socket_addr,
                 &encrypted_message.aes_nonce,
                 &encrypted_message.encrypted_payload,
-            );
-            log::info!(
-                "[{}]: Decrypted encrypted_payload into decrypted_payload",
-                socket_addr
-            );
+            ) {
+                Ok(decrypted_payload) => decrypted_payload,
+                Err(e) => {
+                    log::error!("[{}]: Error decrypting payload: {}", socket_addr, e);
+                    return Err(format!("AES Decryption Error: {}", e).into());
+                }
+            };
 
-            wrapped_message = pb::WrappedMessage::decode(decrypted_payload.as_slice())
-                .expect("error decoding decrypted_payload");
+            wrapped_message = pb::WrappedMessage::decode(decrypted_payload.as_slice()).unwrap();
             log::info!(
                 "[{}]: Decoded decrypted_payload into wrapped_message",
                 socket_addr
@@ -523,4 +530,212 @@ pub fn sign_encrypt_message(
     log::info!("[{}]: Wrapped message and signature", socket_addr);
 
     Ok(signed_message)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::{self, EncryptionModes};
+    use aes_gcm::{aead::Aead, AeadCore, Aes256Gcm, Key, KeyInit};
+    use rsa::rand_core::{OsRng, RngCore};
+    use rsa::signature::SignerMut;
+    use rsa::{pkcs1v15::SigningKey, RsaPrivateKey};
+    use std::net::{IpAddr, Ipv4Addr};
+    use x25519_dalek::{EphemeralSecret, PublicKey};
+
+    fn setup_state_for_test(socket_addr: SocketAddr) -> RsaPrivateKey {
+        // Own RSA key
+        state::init_app_data();
+
+        // Peer RSA key
+        let private_key = RsaPrivateKey::new(&mut OsRng, 2048).expect("failed to generate a key");
+        let public_key = private_key.to_public_key();
+
+        let alice_secret = EphemeralSecret::random_from_rng(&mut OsRng);
+        let alice_public = PublicKey::from(&alice_secret);
+
+        {
+            let mut client_map_lock = state::CLIENT_DATA.write().unwrap();
+            let client_data = state::ClientData {
+                nickname: Some("testclient".to_string()),
+                connections: 1,
+                rsa_public: Some(public_key),
+                aes_ephemeral: Some(alice_secret),
+                aes_public: Some(alice_public),
+                aes_shared: None,
+                file_map: None,
+            };
+            client_map_lock.insert(socket_addr, std::sync::RwLock::new(client_data));
+        }
+        private_key
+    }
+
+    #[test]
+    fn good_signed_unencrypted_message() {
+        let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
+        let private_key = setup_state_for_test(socket_addr);
+        let use_client_encryption = EncryptionModes {
+            use_rsa: true,
+            use_aes: false,
+        };
+        let wrapped_message = pb::WrappedMessage {
+            payload: Some(pb::wrapped_message::Payload::FileListRequest(
+                pb::FileListRequest {},
+            )),
+        };
+
+        let msg = wrapped_message.encode_to_vec();
+
+        let mut signing_key = SigningKey::<Sha256>::new(private_key.clone());
+        let signature = signing_key.sign(&msg);
+
+        let signed_message = pb::SignedMessage {
+            encrypted_message: pb::signed_message::EncryptedMessage::WrappedMessage as i32,
+            signed_payload: msg,
+            rsa_signature: signature.to_vec(),
+        };
+
+        let result = unsign_decrypt_message(socket_addr, &use_client_encryption, &signed_message);
+
+        assert!(result.is_ok());
+        let unwrapped_message = result.unwrap();
+        assert_eq!(unwrapped_message.payload, wrapped_message.payload);
+    }
+
+    #[test]
+    fn good_signed_encrypted_message() {
+        let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081);
+        let private_key = setup_state_for_test(socket_addr);
+
+        let bob_secret = EphemeralSecret::random_from_rng(&mut OsRng);
+        let bob_public = PublicKey::from(&bob_secret);
+        state::set_client_dh_shared(socket_addr, bob_public);
+        let wrapped_message = pb::WrappedMessage {
+            payload: Some(pb::wrapped_message::Payload::FileListRequest(
+                pb::FileListRequest {},
+            )),
+        };
+
+        let client_data_map = state::CLIENT_DATA.read().unwrap();
+        let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
+
+        let shared_secret = client_data.aes_shared.as_ref().unwrap();
+        let key: &Key<Aes256Gcm> = shared_secret.as_bytes().into();
+        let cipher = aes_gcm::Aes256Gcm::new(&key);
+
+        let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+        let ciphertext = cipher
+            .encrypt(&nonce, wrapped_message.encode_to_vec().as_slice())
+            .unwrap();
+
+        let signed_payload = pb::EncryptedMessage {
+            aes_nonce: nonce.to_vec(),
+            encrypted_payload: ciphertext,
+        }
+        .encode_to_vec();
+
+        let mut signing_key = SigningKey::<Sha256>::new(private_key.clone());
+        let signature = signing_key.sign(&signed_payload);
+
+        let signed_message = pb::SignedMessage {
+            encrypted_message: pb::signed_message::EncryptedMessage::EncryptedWrappedMessage as i32,
+            signed_payload: signed_payload,
+            rsa_signature: signature.to_vec(),
+        };
+
+        let result = unsign_decrypt_message(
+            socket_addr,
+            &EncryptionModes {
+                use_rsa: true,
+                use_aes: true,
+            },
+            &signed_message,
+        );
+
+        assert!(result.is_ok());
+        let unwrapped_message = result.unwrap();
+        assert_eq!(unwrapped_message.payload, wrapped_message.payload);
+    }
+
+    #[test]
+    fn bad_signed_unencrypted_message() {
+        let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
+        let _private_key = setup_state_for_test(socket_addr);
+        let use_client_encryption = EncryptionModes {
+            use_rsa: true,
+            use_aes: false,
+        };
+        let wrapped_message = pb::WrappedMessage {
+            payload: Some(pb::wrapped_message::Payload::FileListRequest(
+                pb::FileListRequest {},
+            )),
+        };
+
+        let msg = wrapped_message.encode_to_vec();
+
+        let mut bad_signing_key = SigningKey::<Sha256>::new(
+            RsaPrivateKey::new(&mut OsRng, 2048).expect("failed to generate a key"),
+        );
+        let bad_signature = bad_signing_key.sign(&msg);
+
+        let signed_message = pb::SignedMessage {
+            encrypted_message: pb::signed_message::EncryptedMessage::WrappedMessage as i32,
+            signed_payload: msg,
+            rsa_signature: bad_signature.to_vec(),
+        };
+
+        let result = unsign_decrypt_message(socket_addr, &use_client_encryption, &signed_message);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn good_signed_bad_encrypted_message() {
+        let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081);
+        let private_key = setup_state_for_test(socket_addr);
+
+        let bob_secret = EphemeralSecret::random_from_rng(&mut OsRng);
+        let bob_public = PublicKey::from(&bob_secret);
+        state::set_client_dh_shared(socket_addr, bob_public);
+        let wrapped_message = pb::WrappedMessage {
+            payload: Some(pb::wrapped_message::Payload::FileListRequest(
+                pb::FileListRequest {},
+            )),
+        };
+
+        let bad_shared_secret_bytes: [u8; 32] = [0u8; 32];
+        let bad_key = Key::<Aes256Gcm>::from_slice(&bad_shared_secret_bytes);
+        let bad_key_cipher = Aes256Gcm::new(&bad_key);
+
+        let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+        let ciphertext = bad_key_cipher
+            .encrypt(&nonce, wrapped_message.encode_to_vec().as_slice())
+            .unwrap();
+
+        let signed_payload = pb::EncryptedMessage {
+            aes_nonce: nonce.to_vec(),
+            encrypted_payload: ciphertext,
+        }
+        .encode_to_vec();
+
+        let mut signing_key = SigningKey::<Sha256>::new(private_key.clone());
+        let signature = signing_key.sign(&signed_payload);
+
+        let signed_message = pb::SignedMessage {
+            encrypted_message: pb::signed_message::EncryptedMessage::EncryptedWrappedMessage as i32,
+            signed_payload: signed_payload,
+            rsa_signature: signature.to_vec(),
+        };
+
+        let result = unsign_decrypt_message(
+            socket_addr,
+            &EncryptionModes {
+                use_rsa: true,
+                use_aes: true,
+            },
+            &signed_message,
+        );
+
+        assert!(result.is_err());
+    }
 }

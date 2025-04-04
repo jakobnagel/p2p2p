@@ -1,7 +1,7 @@
 use aes_gcm::{aead, aead::Aead, AeadCore, Aes256Gcm, Key, KeyInit};
 use hex;
 use lazy_static::lazy_static;
-use rsa::pkcs1v15::{Signature, SigningKey, VerifyingKey};
+use rsa::pkcs1v15::{Signature, SigningKey};
 use rsa::rand_core::{OsRng, RngCore};
 use rsa::sha2::{Digest, Sha256};
 use rsa::signature::{SignerMut, Verifier};
@@ -25,7 +25,7 @@ lazy_static! {
     static ref FILE_SYSTEM: RwLock<FileSystem> = RwLock::new(FileSystem {
         files: HashMap::new()
     });
-    static ref CLIENT_DATA: RwLock<HashMap<SocketAddr, RwLock<ClientData>>> =
+    pub static ref CLIENT_DATA: RwLock<HashMap<SocketAddr, RwLock<ClientData>>> =
         RwLock::new(HashMap::new());
     static ref NICKNAME_TO_SOCKET: RwLock<HashMap<String, SocketAddr>> =
         RwLock::new(HashMap::new());
@@ -79,13 +79,13 @@ impl fmt::Display for FileDirection {
 }
 
 pub struct ClientData {
-    nickname: Option<String>,
-    connections: u16,
-    rsa_public: Option<RsaPublicKey>,
-    aes_ephemeral: Option<EphemeralSecret>,
-    aes_public: Option<PublicKey>,
-    aes_shared: Option<SharedSecret>,
-    file_map: Option<HashMap<String, File>>,
+    pub nickname: Option<String>,
+    pub connections: u16,
+    pub rsa_public: Option<RsaPublicKey>,
+    pub aes_ephemeral: Option<EphemeralSecret>,
+    pub aes_public: Option<PublicKey>,
+    pub aes_shared: Option<SharedSecret>,
+    pub file_map: Option<HashMap<String, File>>,
 }
 
 pub struct AesEncrypted {
@@ -842,7 +842,11 @@ pub fn encrypt_aes_message(socket_addr: SocketAddr, plaintext: &[u8]) -> AesEncr
     }
 }
 
-pub fn decrypt_aes_message(socket_addr: SocketAddr, nonce: &[u8], ciphertext: &[u8]) -> Vec<u8> {
+pub fn decrypt_aes_message(
+    socket_addr: SocketAddr,
+    nonce: &[u8],
+    ciphertext: &[u8],
+) -> aead::Result<Vec<u8>> {
     let client_data_map = CLIENT_DATA.read().unwrap();
     let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
 
@@ -852,8 +856,7 @@ pub fn decrypt_aes_message(socket_addr: SocketAddr, nonce: &[u8], ciphertext: &[
     let cipher = aes_gcm::Aes256Gcm::new(&key);
 
     let nonce = aes_gcm::Nonce::from_slice(nonce);
-    let decrypted_bytes = cipher.decrypt(nonce, ciphertext.as_ref()).unwrap();
-    decrypted_bytes
+    cipher.decrypt(nonce, ciphertext.as_ref())
 }
 
 pub fn get_outgoing_message(socket_addr: SocketAddr) -> Option<pb::WrappedMessage> {
