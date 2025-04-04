@@ -123,9 +123,16 @@ def consume_message(local_rsa_priv_key, peer_rsa_pub_key, aes_key, serialized_ms
 
     elif plain_payload.HasField("file_upload_request"):
         print('file_upload_request received')
+        fname = plain_payload.file_upload_request.file_name
+        consent = input(f"Client sent file: {fname}, allow? (y/n)")
+        if consent == 'y':
+            complete_file_download(fname, plain_payload.file_upload_request.file_data)
 
     elif plain_payload.HasField("error"):
         print('Error message received')
+        print('***********************')
+        print(f'ERROR: {plain_payload.error.message}')
+        print('***********************')
 
     else:
         print('unknown request type')
