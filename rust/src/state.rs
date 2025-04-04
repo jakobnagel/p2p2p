@@ -730,8 +730,8 @@ pub fn is_client_connected(socket_addr: SocketAddr) -> bool {
     client_data.connections >= 1
 }
 
-pub fn find_clients_with_hash(file_hash: &str) -> Vec<SocketAddr> {
-    let mut clients_with_hash = Vec::new();
+pub fn find_clients_with_hash(file_hash: &str) -> Vec<String> {
+    let mut clients_with_hash: Vec<String> = Vec::new();
     let client_data_map = CLIENT_DATA.read().unwrap();
     for (socket_addr, client_data) in client_data_map.iter() {
         let client_data = client_data.read().unwrap();
@@ -740,7 +740,10 @@ pub fn find_clients_with_hash(file_hash: &str) -> Vec<SocketAddr> {
         }
         if let Some(file_map) = &client_data.file_map {
             if file_map.values().any(|file| file.file_hash == file_hash) {
-                clients_with_hash.push(*socket_addr);
+                match get_nickname_from_socket(*socket_addr) {
+                    Some(nickname) => clients_with_hash.push(nickname),
+                    None => continue,
+                }
             }
         }
     }
