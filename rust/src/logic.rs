@@ -7,7 +7,6 @@ use colored::*;
 use num_traits::cast::ToPrimitive;
 use prost::Message;
 use rsa::pkcs1v15::Signature;
-use rsa::sha2::Sha256;
 use rsa::signature::SignatureEncoding;
 use rsa::traits::PublicKeyParts;
 use rsa::{BigUint, RsaPublicKey};
@@ -41,7 +40,7 @@ pub fn handle_message(
                 Err(()) => log::info!("Didn't migrate"),
             }
 
-            // let verifying_key = rsa::pkcs1v15::VerifyingKey::<Sha256>::new(public_key);
+            // let verifying_key = rsa::pkcs1v15::VerifyingKey::<rsa::sha2::Sha256>::new(public_key);
             state::set_client_rsa_key(socket_addr, public_key);
 
             if state::get_client_encryption_modes(socket_addr).use_aes {
@@ -537,7 +536,7 @@ mod tests {
     use super::*;
     use crate::state::{self, EncryptionModes};
     use aes_gcm::{aead::Aead, AeadCore, Aes256Gcm, Key, KeyInit};
-    use rsa::rand_core::{OsRng, RngCore};
+    use rsa::rand_core::OsRng;
     use rsa::signature::SignerMut;
     use rsa::{pkcs1v15::SigningKey, RsaPrivateKey};
     use std::net::{IpAddr, Ipv4Addr};
@@ -586,7 +585,7 @@ mod tests {
 
         let msg = wrapped_message.encode_to_vec();
 
-        let mut signing_key = SigningKey::<Sha256>::new(private_key.clone());
+        let mut signing_key = SigningKey::<rsa::sha2::Sha256>::new(private_key.clone());
         let signature = signing_key.sign(&msg);
 
         let signed_message = pb::SignedMessage {
@@ -634,7 +633,7 @@ mod tests {
         }
         .encode_to_vec();
 
-        let mut signing_key = SigningKey::<Sha256>::new(private_key.clone());
+        let mut signing_key = SigningKey::<rsa::sha2::Sha256>::new(private_key.clone());
         let signature = signing_key.sign(&signed_payload);
 
         let signed_message = pb::SignedMessage {
@@ -673,7 +672,7 @@ mod tests {
 
         let msg = wrapped_message.encode_to_vec();
 
-        let mut bad_signing_key = SigningKey::<Sha256>::new(
+        let mut bad_signing_key = SigningKey::<rsa::sha2::Sha256>::new(
             RsaPrivateKey::new(&mut OsRng, 2048).expect("failed to generate a key"),
         );
         let bad_signature = bad_signing_key.sign(&msg);
@@ -718,7 +717,7 @@ mod tests {
         }
         .encode_to_vec();
 
-        let mut signing_key = SigningKey::<Sha256>::new(private_key.clone());
+        let mut signing_key = SigningKey::<rsa::sha2::Sha256>::new(private_key.clone());
         let signature = signing_key.sign(&signed_payload);
 
         let signed_message = pb::SignedMessage {

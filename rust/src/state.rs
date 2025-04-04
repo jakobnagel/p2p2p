@@ -5,7 +5,6 @@ use rsa::pkcs1v15::{Signature, SigningKey};
 use rsa::rand_core::{OsRng, RngCore};
 use rsa::sha2::{Digest, Sha256};
 use rsa::signature::{SignerMut, Verifier};
-use rsa::traits::PublicKeyParts;
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -418,11 +417,6 @@ pub fn get_file_by_name(file_name: &str) -> File {
     panic!("File not found")
 }
 
-pub fn file_hash_to_name(file_hash: &str) -> String {
-    let file_system = FILE_SYSTEM.read().unwrap();
-    file_system.files.get(file_hash).unwrap().file_name.clone()
-}
-
 pub fn file_name_to_hash(file_name: &str) -> Option<String> {
     let file_system = FILE_SYSTEM.read().unwrap();
     for file in file_system.files.values() {
@@ -656,13 +650,6 @@ pub fn set_client_file_list(socket_addr: SocketAddr, file_map: HashMap<String, F
     client_data.file_map = Some(file_map);
 }
 
-pub fn get_client_file_list(socket_addr: SocketAddr) -> Option<HashMap<String, File>> {
-    let client_data_map = CLIENT_DATA.read().unwrap();
-    let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
-
-    client_data.file_map.clone()
-}
-
 pub fn print_client_file_list(socket_addr: SocketAddr) {
     let client_data_map = CLIENT_DATA.read().unwrap();
     let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
@@ -741,11 +728,6 @@ pub fn is_client_connected(socket_addr: SocketAddr) -> bool {
     let client_data = client_data_map.get(&socket_addr).unwrap().read().unwrap();
 
     client_data.connections >= 1
-}
-
-pub fn get_client_list() -> Vec<SocketAddr> {
-    let client_data_map = CLIENT_DATA.read().unwrap();
-    client_data_map.keys().cloned().collect()
 }
 
 pub fn find_clients_with_hash(file_hash: &str) -> Vec<SocketAddr> {
